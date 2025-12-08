@@ -1,9 +1,17 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
-import { PrismaClient } from '@prisma/client';
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const { PrismaClient } = require('@prisma/client');
 
-const prisma = new PrismaClient();
+// Singleton pattern for Prisma in serverless
+let prisma: any;
+
+function getPrisma() {
+  if (!prisma) {
+    prisma = new PrismaClient();
+  }
+  return prisma;
+}
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
@@ -11,6 +19,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
+    const db = getPrisma();
     const { email, password } = req.body;
 
     if (!email || !password) {
@@ -18,7 +27,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     // Check if admin exists
-    let admin = await prisma.admin.findUnique({
+    let admin = await db.admin.findUnique({
       where: { email }
     });
 
@@ -29,7 +38,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       
       if (email === defaultEmail) {
         const hashedPassword = await bcrypt.hash(defaultPassword, 10);
-        admin = await prisma.admin.create({
+        admin = await db.admin.create({
           data: {
             email: defaultEmail,
             password: hashedPassword,
@@ -67,8 +76,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
   } catch (error: any) {
     console.error('Admin login error:', error);
-    return res.status(500).json({ error: 'Internal server error' });
-  } finally {
-    await prisma.$disconnect();
+    return res.status(500).json({ error: 'Internal server error', details: error.message });
   }
 }
