@@ -1,5 +1,5 @@
 {
-  "buildCommand": "npm run build && cd server && npm install && npx prisma generate",
+  "buildCommand": "npx prisma generate && npm run build && cd server && npm install",
   "outputDirectory": "dist",
   "framework": "vite",
   "rewrites": [
