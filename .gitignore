@@ -70,3 +70,4 @@ ecosystem.config.js
 
 # Railway
 .railway/
+.env*.local

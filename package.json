@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "postinstall": "cd server && npm install && npx prisma generate"
+    "postinstall": "cd server && npm install && npx prisma generate",
+    "vercel-build": "npm run build && cd server && npx prisma migrate deploy"
   },
   "dependencies": {
     "react": "^19.2.1",
