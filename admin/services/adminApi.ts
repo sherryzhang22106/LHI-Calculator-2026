@@ -1,4 +1,6 @@
-const API_BASE = 'http://localhost:5001/api';
+const API_BASE = typeof window !== 'undefined' && window.location.hostname === 'localhost' 
+  ? 'http://localhost:5001/api'
+  : '/api';
 
 class AdminApi {
   private token: string | null = null;

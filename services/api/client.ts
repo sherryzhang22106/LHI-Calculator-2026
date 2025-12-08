@@ -1,4 +1,6 @@
-const API_BASE = 'http://localhost:5001/api';
+const API_BASE = typeof window !== 'undefined' && window.location.hostname === 'localhost' 
+  ? 'http://localhost:5001/api'
+  : '/api';
 
 class ApiClient {
   async validateAccessCode(code: string): Promise<{ valid: boolean; accessCodeId?: string; message?: string }> {
