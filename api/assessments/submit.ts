@@ -56,12 +56,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Generate AI analysis first (async call to DeepSeek)
     console.log('Generating AI analysis...');
-    const aiAnalysisObject = await generateAIAnalysis(totalScore, category, attachmentStyle, dimensions);
-    console.log('AI analysis generated:', aiAnalysisObject);
+    let aiAnalysisObject;
+    try {
+      aiAnalysisObject = await generateAIAnalysis(totalScore, category, attachmentStyle, dimensions);
+      console.log('AI analysis generated successfully');
+    } catch (aiError: any) {
+      console.error('AI analysis generation failed:', aiError.message);
+      // Use fallback but continue with data saving
+      aiAnalysisObject = {
+        resultInterpretation: '分析生成失败，请稍后重试',
+        strengths: '',
+        areasToWatch: '',
+        personalizedAdvice: '',
+        professionalAdvice: ''
+      };
+    }
     
     // Store as JSON string in database
     const aiAnalysis = JSON.stringify(aiAnalysisObject);
 
+    console.log('Creating assessment record...');
     // Create assessment with AI analysis
     const assessment = await db.assessment.create({
       data: {
@@ -76,7 +90,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         userAgent
       }
     });
+    console.log('Assessment created with ID:', assessment.id);
 
+    console.log('Updating access code status...');
     // Mark access code as used
     await db.accessCode.update({
       where: { id: codeRecord.id },
@@ -86,7 +102,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         usedByIp: ipAddress
       }
     });
+    console.log('Access code marked as used:', codeRecord.code);
 
+    console.log('=== SUBMIT ASSESSMENT SUCCESS ===');
+    console.log('Assessment ID:', assessment.id);
+    
     return res.status(200).json({
       id: assessment.id,
       totalScore,
