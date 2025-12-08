@@ -1,5 +1,5 @@
 {
-  "buildCommand": "npm install && npm run build && cd server && npm install && npx prisma generate",
+  "buildCommand": "npm install && npm run build",
   "outputDirectory": "dist",
   "framework": "vite",
   "rewrites": [
@@ -22,10 +22,5 @@
         }
       ]
     }
-  ],
-  "functions": {
-    "api/*.ts": {
-      "runtime": "nodejs20.x"
-    }
-  }
+  ]
 }
