@@ -26,35 +26,47 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     // Get statistics
-    const totalCodes = await prisma.accessCode.count();
-    const usedCodes = await prisma.accessCode.count({
-      where: { isUsed: true }
+    const total = await db.assessment.count();
+    
+    const assessments = await db.assessment.findMany();
+    
+    // Calculate average score
+    const avgScore = assessments.length > 0
+      ? Math.round(assessments.reduce((sum, a) => sum + a.totalScore, 0) / assessments.length)
+      : 0;
+
+    // Category distribution
+    const categoryCount: Record<string, number> = {};
+    assessments.forEach(a => {
+      categoryCount[a.category] = (categoryCount[a.category] || 0) + 1;
     });
-    const totalAssessments = await prisma.assessment.count();
+    const categoryDistribution = Object.entries(categoryCount).map(([category, count]) => ({
+      category,
+      count
+    }));
+
+    // Attachment style distribution
+    const attachmentCount: Record<string, number> = {};
+    assessments.forEach(a => {
+      attachmentCount[a.attachmentStyle] = (attachmentCount[a.attachmentStyle] || 0) + 1;
+    });
+    const attachmentDistribution = Object.entries(attachmentCount).map(([style, count]) => ({
+      style,
+      count
+    }));
 
     // Get recent assessments
-    const recentAssessments = await prisma.assessment.findMany({
+    const recentAssessments = await db.assessment.findMany({
       take: 10,
-      orderBy: { createdAt: 'desc' },
-      include: {
-        accessCode: {
-          select: { code: true }
-        }
-      }
+      orderBy: { createdAt: 'desc' }
     });
 
     return res.status(200).json({
-      totalCodes,
-      usedCodes,
-      availableCodes: totalCodes - usedCodes,
-      totalAssessments,
-      recentAssessments: recentAssessments.map(a => ({
-        id: a.id,
-        code: a.accessCode.code,
-        totalScore: a.totalScore,
-        category: a.category,
-        createdAt: a.createdAt
-      }))
+      total,
+      avgScore,
+      categoryDistribution,
+      attachmentDistribution,
+      recentAssessments
     });
   } catch (error: any) {
     console.error('Get stats error:', error);
