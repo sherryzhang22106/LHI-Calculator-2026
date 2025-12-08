@@ -17,6 +17,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
+    console.log('=== SUBMIT ASSESSMENT START ===');
     const {
       accessCode,
       totalScore,
@@ -25,6 +26,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       dimensions,
       answers
     } = req.body;
+    
+    console.log('Request body:', { accessCode, totalScore, category, attachmentStyle });
 
     if (!accessCode) {
       return res.status(400).json({ error: 'Access code is required' });
@@ -93,7 +96,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       aiAnalysis: aiAnalysisObject
     });
   } catch (error: any) {
-    console.error('Submit assessment error:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    console.error('=== SUBMIT ASSESSMENT ERROR ===');
+    console.error('Error:', error);
+    console.error('Error stack:', error.stack);
+    return res.status(500).json({ 
+      error: 'Internal server error',
+      details: error.message 
+    });
   }
 }

@@ -22,6 +22,8 @@ export async function generateAIAnalysis(
 ): Promise<DeepSeekAnalysis> {
   const apiKey = process.env.DEEPSEEK_API_KEY;
   
+  console.log('generateAIAnalysis called, has API key:', !!apiKey);
+  
   if (!apiKey) {
     console.warn('DEEPSEEK_API_KEY not configured, using fallback');
     return getFallbackAnalysis(totalScore, category, attachmentStyle);
@@ -30,7 +32,9 @@ export async function generateAIAnalysis(
   try {
     const prompt = buildPrompt(totalScore, category, attachmentStyle, dimensions);
     
-    const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
+    console.log('Calling DeepSeek API...');
+    const response = await Promise.race([
+      fetch('https://api.deepseek.com/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -51,8 +55,14 @@ export async function generateAIAnalysis(
         temperature: 0.7,
         max_tokens: 2000,
       }),
-    });
+    }),
+    new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('DeepSeek API timeout')), 15000)
+    )
+    ]) as Response;
 
+    console.log('DeepSeek API response status:', response.status);
+    
     if (!response.ok) {
       console.error(`DeepSeek API error: ${response.status}`);
       return getFallbackAnalysis(totalScore, category, attachmentStyle);
@@ -61,13 +71,15 @@ export async function generateAIAnalysis(
     const data: any = await response.json();
     const content = data.choices[0]?.message?.content || '';
     
-    console.log('DeepSeek API response:', content.substring(0, 200));
+    console.log('DeepSeek API response received, length:', content.length);
     
     // Parse the response into structured format
     const parsed = parseAnalysisResponse(content);
+    console.log('Parsed analysis, has resultInterpretation:', !!parsed.resultInterpretation);
     return parsed;
-  } catch (error) {
-    console.error('DeepSeek API call failed:', error);
+  } catch (error: any) {
+    console.error('DeepSeek API call failed:', error.message);
+    console.log('Using fallback analysis');
     return getFallbackAnalysis(totalScore, category, attachmentStyle);
   }
 }
