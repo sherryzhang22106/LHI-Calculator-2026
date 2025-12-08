@@ -1,7 +1,15 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { PrismaClient } from '@prisma/client';
+import { generateAIAnalysis } from '../services/deepseek';
 
-const prisma = new PrismaClient();
+let prisma: PrismaClient | null = null;
+
+function getPrisma() {
+  if (!prisma) {
+    prisma = new PrismaClient();
+  }
+  return prisma;
+}
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
@@ -22,8 +30,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: 'Access code is required' });
     }
 
+    const db = getPrisma();
+
     // Find and validate access code
-    const codeRecord = await prisma.accessCode.findUnique({
+    const codeRecord = await db.accessCode.findUnique({
       where: { code: accessCode }
     });
 
@@ -41,8 +51,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                      'unknown';
     const userAgent = req.headers['user-agent'] || 'unknown';
 
-    // Create assessment
-    const assessment = await prisma.assessment.create({
+    // Generate AI analysis first (async call to DeepSeek)
+    console.log('Generating AI analysis...');
+    const aiAnalysis = await generateAIAnalysis(totalScore, category, attachmentStyle, dimensions);
+    console.log('AI analysis generated:', aiAnalysis.substring(0, 100));
+
+    // Create assessment with AI analysis
+    const assessment = await db.assessment.create({
       data: {
         accessCodeId: codeRecord.id,
         totalScore,
@@ -50,28 +65,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         attachmentStyle,
         dimensions: JSON.stringify(dimensions),
         answers: JSON.stringify(answers),
+        aiAnalysis,
         ipAddress,
         userAgent
       }
     });
 
     // Mark access code as used
-    await prisma.accessCode.update({
+    await db.accessCode.update({
       where: { id: codeRecord.id },
       data: {
         isUsed: true,
         usedAt: new Date(),
         usedByIp: ipAddress
       }
-    });
-
-    // Generate AI analysis (simplified for now)
-    const aiAnalysis = `您的恋爱健康指数为${totalScore}分，属于${category}水平。您的依恋类型倾向于${attachmentStyle}型。`;
-
-    // Update assessment with AI analysis
-    await prisma.assessment.update({
-      where: { id: assessment.id },
-      data: { aiAnalysis }
     });
 
     return res.status(200).json({
@@ -85,7 +92,5 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   } catch (error: any) {
     console.error('Submit assessment error:', error);
     return res.status(500).json({ error: 'Internal server error' });
-  } finally {
-    await prisma.$disconnect();
   }
 }
