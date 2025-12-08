@@ -53,8 +53,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Generate AI analysis first (async call to DeepSeek)
     console.log('Generating AI analysis...');
-    const aiAnalysis = await generateAIAnalysis(totalScore, category, attachmentStyle, dimensions);
-    console.log('AI analysis generated:', aiAnalysis.substring(0, 100));
+    const aiAnalysisObject = await generateAIAnalysis(totalScore, category, attachmentStyle, dimensions);
+    console.log('AI analysis generated:', aiAnalysisObject);
+    
+    // Store as JSON string in database
+    const aiAnalysis = JSON.stringify(aiAnalysisObject);
 
     // Create assessment with AI analysis
     const assessment = await db.assessment.create({
@@ -87,7 +90,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       category,
       attachmentStyle,
       dimensions,
-      aiAnalysis
+      aiAnalysis: aiAnalysisObject
     });
   } catch (error: any) {
     console.error('Submit assessment error:', error);

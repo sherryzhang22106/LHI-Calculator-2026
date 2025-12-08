@@ -38,10 +38,14 @@ const ReportScreen: React.FC<ReportScreenProps> = ({ result }) => {
   }));
 
   const handleShare = () => {
+    console.log('Share clicked, assessmentId:', result.assessmentId);
     if (result.assessmentId) {
       const url = `${window.location.origin}/share/${result.assessmentId}`;
       setShareUrl(url);
       setShowShareModal(true);
+    } else {
+      alert('无法生成分享链接：评估ID不存在');
+      console.error('Assessment ID is missing:', result);
     }
   };
 

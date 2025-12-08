@@ -36,13 +36,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const dimensions = JSON.parse(assessment.dimensions);
     const answers = JSON.parse(assessment.answers);
 
-    // Parse AI analysis if it's a structured format
-    let aiAnalysis = assessment.aiAnalysis || '';
+    // Parse AI analysis
     let parsedAnalysis = null;
-
-    // Try to parse structured AI analysis
-    if (aiAnalysis) {
-      // Check if it's in structured format with ### markers
+    try {
+      // Try to parse as JSON first (new format)
+      parsedAnalysis = JSON.parse(assessment.aiAnalysis || '{}');
+    } catch {
+      // Fallback to string parsing for old format
+      const aiAnalysis = assessment.aiAnalysis || '';
       if (aiAnalysis.includes('###')) {
         const sections = {
           resultInterpretation: '',
@@ -82,7 +83,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       attachmentStyle: assessment.attachmentStyle,
       dimensions,
       answers,
-      aiAnalysis: parsedAnalysis || aiAnalysis,
+      aiAnalysis: parsedAnalysis,
       createdAt: assessment.createdAt
     });
   } catch (error: any) {
