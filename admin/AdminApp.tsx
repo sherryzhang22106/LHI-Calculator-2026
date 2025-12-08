@@ -32,7 +32,8 @@ const AdminApp: React.FC = () => {
     }
   }, []);
 
-  const handleLogin = (token: string, admin: any) => {
+  const handleLogin = (token: string, user: any) => {
+    const admin = user || { id: '', email: '', name: 'Admin' };
     localStorage.setItem('admin_token', token);
     localStorage.setItem('admin_data', JSON.stringify(admin));
     setAuthState({ isAuthenticated: true, token, admin });

@@ -18,8 +18,10 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
 
     try {
       const response = await adminApi.login(email, password);
-      onLogin(response.token, response.admin);
+      console.log('Login response:', response);
+      onLogin(response.token, response.user);
     } catch (err: any) {
+      console.error('Login error:', err);
       setError(err.message || 'Login failed');
     } finally {
       setLoading(false);
