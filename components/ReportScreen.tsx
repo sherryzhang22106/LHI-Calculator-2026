@@ -15,8 +15,17 @@ const ReportScreen: React.FC<ReportScreenProps> = ({ result }) => {
   useEffect(() => {
     setMounted(true);
     window.scrollTo(0, 0);
-    console.log('Report result:', result);
+    console.log('=== REPORT DEBUG ===');
+    console.log('Full result:', result);
+    console.log('AI Analysis exists?', !!result.aiAnalysis);
     console.log('AI Analysis:', result.aiAnalysis);
+    console.log('AI Analysis type:', typeof result.aiAnalysis);
+    console.log('Assessment ID:', result.assessmentId);
+    if (result.aiAnalysis) {
+      console.log('AI Analysis keys:', Object.keys(result.aiAnalysis));
+      console.log('resultInterpretation:', result.aiAnalysis.resultInterpretation?.substring(0, 50));
+    }
+    console.log('=== END DEBUG ===');
   }, []);
 
   // Format AI text: remove markdown symbols and clean up formatting
@@ -113,7 +122,7 @@ const ReportScreen: React.FC<ReportScreenProps> = ({ result }) => {
         </div>
 
         {/* AI Analysis Section */}
-        {result.aiAnalysis && (
+        {result.aiAnalysis && result.aiAnalysis.resultInterpretation ? (
           <div className="mb-12 space-y-6">
             <h2 className="text-2xl font-bold text-slate-800 text-center mb-8">
               💡 AI 专业分析
@@ -178,6 +187,21 @@ const ReportScreen: React.FC<ReportScreenProps> = ({ result }) => {
                 ))}
               </div>
             </div>
+          </div>
+        ) : (
+          <div className="mb-12 bg-yellow-50 border border-yellow-200 rounded-2xl p-6">
+            <h3 className="text-lg font-bold text-yellow-800 mb-2">⚠️ AI 分析加载中或不可用</h3>
+            <p className="text-yellow-700 text-sm">
+              {!result.aiAnalysis ? 'AI分析数据不存在' : 
+               !result.aiAnalysis.resultInterpretation ? 'AI分析内容为空' :
+               '未知错误'}
+            </p>
+            <button 
+              onClick={() => console.log('Debug:', result)}
+              className="mt-3 px-4 py-2 bg-yellow-200 text-yellow-800 rounded-lg text-sm"
+            >
+              查看调试信息（检查控制台）
+            </button>
           </div>
         )}
 
