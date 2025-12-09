@@ -16,6 +16,7 @@ const Dashboard: React.FC<DashboardProps> = ({ admin, onLogout }) => {
   const [codes, setCodes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [generateCount, setGenerateCount] = useState(10);
+  const [newlyGeneratedCodes, setNewlyGeneratedCodes] = useState<any[]>([]);
 
   useEffect(() => {
     loadData();
@@ -49,12 +50,52 @@ const Dashboard: React.FC<DashboardProps> = ({ admin, onLogout }) => {
 
   const handleGenerateCodes = async () => {
     try {
-      await adminApi.generateCodes(generateCount);
-      alert(`Successfully generated ${generateCount} access codes!`);
+      const result = await adminApi.generateCodes(generateCount);
+      alert(`成功生成 ${generateCount} 个兑换码！`);
+      
+      // Store newly generated codes for export
+      if (result && result.codes) {
+        setNewlyGeneratedCodes(result.codes);
+      }
+      
       loadData();
     } catch (error) {
-      alert('Failed to generate codes');
+      alert('生成兑换码失败');
     }
+  };
+
+  const handleExportCodes = () => {
+    if (newlyGeneratedCodes.length === 0) {
+      alert('没有可导出的兑换码，请先生成新的兑换码');
+      return;
+    }
+
+    // Create CSV content
+    const headers = ['兑换码', '批次ID', '生成时间', '状态'];
+    const rows = newlyGeneratedCodes.map(code => [
+      code.code,
+      code.batchId,
+      new Date(code.createdAt).toLocaleString('zh-CN'),
+      code.isUsed ? '已使用' : '未使用'
+    ]);
+    
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.join(','))
+    ].join('\n');
+
+    // Add BOM for Excel to recognize UTF-8
+    const BOM = '\uFEFF';
+    const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    
+    link.setAttribute('href', url);
+    link.setAttribute('download', `兑换码_${new Date().toLocaleDateString('zh-CN').replace(/\//g, '-')}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   return (
@@ -82,9 +123,9 @@ const Dashboard: React.FC<DashboardProps> = ({ admin, onLogout }) => {
       <div className="max-w-7xl mx-auto p-6">
         <div className="flex gap-2 mb-6 bg-white p-2 rounded-lg shadow-sm">
           {[
-            { id: 'overview', label: 'Overview', icon: '📈' },
-            { id: 'assessments', label: 'Assessments', icon: '📝' },
-            { id: 'codes', label: 'Access Codes', icon: '🔑' },
+            { id: 'overview', label: '数据概览', icon: '📈' },
+            { id: 'assessments', label: '评估记录', icon: '📝' },
+            { id: 'codes', label: '兑换码管理', icon: '🔑' },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -104,22 +145,22 @@ const Dashboard: React.FC<DashboardProps> = ({ admin, onLogout }) => {
         {loading ? (
           <div className="text-center py-20">
             <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-purple-500 border-t-transparent"></div>
-            <p className="mt-4 text-slate-500">Loading...</p>
+            <p className="mt-4 text-slate-500">加载中...</p>
           </div>
         ) : (
           <>
             {activeTab === 'overview' && stats && codeStats && (
               <div className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                  <StatCard title="Total Assessments" value={stats.total} icon="📊" color="blue" />
-                  <StatCard title="Avg Score" value={stats.avgScore} icon="⭐" color="green" />
-                  <StatCard title="Available Codes" value={codeStats.available} icon="🔑" color="purple" />
-                  <StatCard title="Used Codes" value={codeStats.used} icon="✅" color="pink" />
+                  <StatCard title="评估总数" value={stats.total} icon="📊" color="blue" />
+                  <StatCard title="平均分数" value={stats.avgScore} icon="⭐" color="green" />
+                  <StatCard title="可用兑换码" value={codeStats.available} icon="🔑" color="purple" />
+                  <StatCard title="已用兑换码" value={codeStats.used} icon="✅" color="pink" />
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="bg-white rounded-xl shadow-sm p-6">
-                    <h3 className="text-lg font-bold text-slate-800 mb-4">Category Distribution</h3>
+                    <h3 className="text-lg font-bold text-slate-800 mb-4">类别分布</h3>
                     <div className="space-y-3">
                       {stats.categoryDistribution.map((item: any) => (
                         <div key={item.category}>
@@ -139,7 +180,7 @@ const Dashboard: React.FC<DashboardProps> = ({ admin, onLogout }) => {
                   </div>
 
                   <div className="bg-white rounded-xl shadow-sm p-6">
-                    <h3 className="text-lg font-bold text-slate-800 mb-4">Attachment Styles</h3>
+                    <h3 className="text-lg font-bold text-slate-800 mb-4">依恋风格分布</h3>
                     <div className="space-y-3">
                       {stats.attachmentDistribution.map((item: any) => (
                         <div key={item.style}>
@@ -160,15 +201,15 @@ const Dashboard: React.FC<DashboardProps> = ({ admin, onLogout }) => {
                 </div>
 
                 <div className="bg-white rounded-xl shadow-sm p-6">
-                  <h3 className="text-lg font-bold text-slate-800 mb-4">Recent Assessments</h3>
+                  <h3 className="text-lg font-bold text-slate-800 mb-4">最近评估</h3>
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead className="bg-slate-50">
                         <tr>
-                          <th className="px-4 py-3 text-left text-slate-600 font-medium">Score</th>
-                          <th className="px-4 py-3 text-left text-slate-600 font-medium">Category</th>
-                          <th className="px-4 py-3 text-left text-slate-600 font-medium">Style</th>
-                          <th className="px-4 py-3 text-left text-slate-600 font-medium">Date</th>
+                          <th className="px-4 py-3 text-left text-slate-600 font-medium">分数</th>
+                          <th className="px-4 py-3 text-left text-slate-600 font-medium">类别</th>
+                          <th className="px-4 py-3 text-left text-slate-600 font-medium">依恋风格</th>
+                          <th className="px-4 py-3 text-left text-slate-600 font-medium">日期</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -191,16 +232,16 @@ const Dashboard: React.FC<DashboardProps> = ({ admin, onLogout }) => {
 
             {activeTab === 'assessments' && (
               <div className="bg-white rounded-xl shadow-sm p-6">
-                <h3 className="text-lg font-bold text-slate-800 mb-4">All Assessments</h3>
+                <h3 className="text-lg font-bold text-slate-800 mb-4">所有评估记录</h3>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead className="bg-slate-50">
                       <tr>
-                        <th className="px-4 py-3 text-left text-slate-600 font-medium">ID</th>
-                        <th className="px-4 py-3 text-left text-slate-600 font-medium">Score</th>
-                        <th className="px-4 py-3 text-left text-slate-600 font-medium">Category</th>
-                        <th className="px-4 py-3 text-left text-slate-600 font-medium">Code</th>
-                        <th className="px-4 py-3 text-left text-slate-600 font-medium">Date</th>
+                        <th className="px-4 py-3 text-left text-slate-600 font-medium">评估ID</th>
+                        <th className="px-4 py-3 text-left text-slate-600 font-medium">分数</th>
+                        <th className="px-4 py-3 text-left text-slate-600 font-medium">类别</th>
+                        <th className="px-4 py-3 text-left text-slate-600 font-medium">兑换码</th>
+                        <th className="px-4 py-3 text-left text-slate-600 font-medium">评估日期</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -224,7 +265,7 @@ const Dashboard: React.FC<DashboardProps> = ({ admin, onLogout }) => {
             {activeTab === 'codes' && codeStats && (
               <div className="space-y-6">
                 <div className="bg-white rounded-xl shadow-sm p-6">
-                  <h3 className="text-lg font-bold text-slate-800 mb-4">Generate Access Codes</h3>
+                  <h3 className="text-lg font-bold text-slate-800 mb-4">生成兑换码</h3>
                   <div className="flex gap-4">
                     <input
                       type="number"
@@ -233,32 +274,41 @@ const Dashboard: React.FC<DashboardProps> = ({ admin, onLogout }) => {
                       value={generateCount}
                       onChange={(e) => setGenerateCount(parseInt(e.target.value))}
                       className="px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-purple-500 outline-none"
-                      placeholder="Count"
+                      placeholder="数量"
                     />
                     <button
                       onClick={handleGenerateCodes}
                       className="px-6 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg font-medium hover:shadow-lg transition-all"
                     >
-                      Generate Codes
+                      生成兑换码
                     </button>
+                    {newlyGeneratedCodes.length > 0 && (
+                      <button
+                        onClick={handleExportCodes}
+                        className="px-6 py-2 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-lg font-medium hover:shadow-lg transition-all"
+                      >
+                        📥 导出新生成的兑换码 ({newlyGeneratedCodes.length})
+                      </button>
+                    )}
                   </div>
                   <div className="mt-4 flex gap-4 text-sm">
-                    <span className="text-slate-600">Total: <strong>{codeStats.total}</strong></span>
-                    <span className="text-green-600">Available: <strong>{codeStats.available}</strong></span>
-                    <span className="text-slate-400">Used: <strong>{codeStats.used}</strong></span>
+                    <span className="text-slate-600">总数: <strong>{codeStats.total}</strong></span>
+                    <span className="text-green-600">可用: <strong>{codeStats.available}</strong></span>
+                    <span className="text-slate-400">已用: <strong>{codeStats.used}</strong></span>
                   </div>
                 </div>
 
                 <div className="bg-white rounded-xl shadow-sm p-6">
-                  <h3 className="text-lg font-bold text-slate-800 mb-4">Access Codes List</h3>
+                  <h3 className="text-lg font-bold text-slate-800 mb-4">兑换码列表</h3>
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead className="bg-slate-50">
                         <tr>
-                          <th className="px-4 py-3 text-left text-slate-600 font-medium">Code</th>
-                          <th className="px-4 py-3 text-left text-slate-600 font-medium">Status</th>
-                          <th className="px-4 py-3 text-left text-slate-600 font-medium">Batch</th>
-                          <th className="px-4 py-3 text-left text-slate-600 font-medium">Used At</th>
+                          <th className="px-4 py-3 text-left text-slate-600 font-medium">兑换码</th>
+                          <th className="px-4 py-3 text-left text-slate-600 font-medium">状态</th>
+                          <th className="px-4 py-3 text-left text-slate-600 font-medium">批次</th>
+                          <th className="px-4 py-3 text-left text-slate-600 font-medium">生成时间</th>
+                          <th className="px-4 py-3 text-left text-slate-600 font-medium">使用时间</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -267,14 +317,17 @@ const Dashboard: React.FC<DashboardProps> = ({ admin, onLogout }) => {
                             <td className="px-4 py-3 font-mono font-bold text-purple-600">{code.code}</td>
                             <td className="px-4 py-3">
                               {code.isUsed ? (
-                                <span className="px-2 py-1 bg-slate-100 text-slate-600 rounded text-xs">Used</span>
+                                <span className="px-2 py-1 bg-slate-100 text-slate-600 rounded text-xs">已使用</span>
                               ) : (
-                                <span className="px-2 py-1 bg-green-100 text-green-700 rounded text-xs">Available</span>
+                                <span className="px-2 py-1 bg-green-100 text-green-700 rounded text-xs">未使用</span>
                               )}
                             </td>
                             <td className="px-4 py-3 text-slate-600 text-xs">{code.batchId}</td>
                             <td className="px-4 py-3 text-slate-500 text-xs">
-                              {code.usedAt ? new Date(code.usedAt).toLocaleString() : '-'}
+                              {code.createdAt ? new Date(code.createdAt).toLocaleString('zh-CN') : '-'}
+                            </td>
+                            <td className="px-4 py-3 text-slate-500 text-xs">
+                              {code.usedAt ? new Date(code.usedAt).toLocaleString('zh-CN') : '-'}
                             </td>
                           </tr>
                         ))}
