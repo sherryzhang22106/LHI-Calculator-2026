@@ -22,7 +22,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
       onLogin(response.token, response.user);
     } catch (err: any) {
       console.error('Login error:', err);
-      setError(err.message || 'Login failed');
+      setError(err.message || '登录失败，请检查邮箱和密码');
     } finally {
       setLoading(false);
     }
@@ -35,13 +35,13 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
           <div className="w-16 h-16 bg-gradient-to-br from-purple-500 to-pink-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
             <span className="text-white text-3xl">🔐</span>
           </div>
-          <h1 className="text-3xl font-bold text-slate-800">Admin Portal</h1>
-          <p className="text-slate-500 mt-2">LHI Calculator Management</p>
+          <h1 className="text-3xl font-bold text-slate-800">LHI 管理后台</h1>
+          <p className="text-slate-500 mt-2">登录以管理评估和兑换码</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5">
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">Email</label>
+            <label className="block text-sm font-medium text-slate-700 mb-2">邮箱</label>
             <input
               type="email"
               value={email}
@@ -53,7 +53,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">Password</label>
+            <label className="block text-sm font-medium text-slate-700 mb-2">密码</label>
             <input
               type="password"
               value={password}
@@ -75,12 +75,12 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
             disabled={loading}
             className="w-full bg-gradient-to-r from-purple-500 to-pink-500 text-white py-3 rounded-lg font-medium hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {loading ? 'Logging in...' : 'Sign In'}
+            {loading ? '登录中...' : '登录'}
           </button>
         </form>
 
         <div className="mt-6 text-center text-xs text-slate-400">
-          <p>Default: admin@lhi.local / admin123456</p>
+          <p>默认账号: admin@lhi.local / admin123456</p>
         </div>
       </div>
     </div>
