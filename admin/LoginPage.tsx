@@ -19,7 +19,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
     try {
       const response = await adminApi.login(email, password);
       console.log('Login response:', response);
-      onLogin(response.token, response.user);
+      onLogin(response.token, response.admin);
     } catch (err: any) {
       console.error('Login error:', err);
       setError(err.message || '登录失败，请检查邮箱和密码');
