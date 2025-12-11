@@ -9,9 +9,9 @@ interface DeepSeekAnalysis {
 }
 
 export class DeepSeekService {
-  private static readonly API_KEY = 'sk-448ce19cde5643e7894695332072dd58';
-  private static readonly API_URL = 'https://api.deepseek.com/v1/chat/completions';
-  private static readonly MODEL = 'deepseek-chat';
+  private static readonly API_KEY = process.env.DEEPSEEK_API_KEY || 'sk-448ce19cde5643e7894695332072dd58';
+  private static readonly API_URL = process.env.DEEPSEEK_API_URL || 'https://api.deepseek.com/v1/chat/completions';
+  private static readonly MODEL = process.env.DEEPSEEK_MODEL || 'deepseek-chat';
 
   static async analyzeAssessment(
     totalScore: number,
