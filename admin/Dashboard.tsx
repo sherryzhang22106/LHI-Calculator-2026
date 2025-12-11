@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { adminApi } from './services/adminApi';
 
 interface DashboardProps {
@@ -158,74 +159,132 @@ const Dashboard: React.FC<DashboardProps> = ({ admin, onLogout }) => {
                   <StatCard title="已用兑换码" value={codeStats.used} icon="✅" color="pink" />
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="bg-white rounded-xl shadow-sm p-6">
-                    <h3 className="text-lg font-bold text-slate-800 mb-4">类别分布</h3>
-                    <div className="space-y-3">
-                      {stats.categoryDistribution.map((item: any) => (
-                        <div key={item.category}>
-                          <div className="flex justify-between text-sm mb-1">
-                            <span className="text-slate-600">{item.category}</span>
-                            <span className="font-bold text-slate-800">{item.count}</span>
-                          </div>
-                          <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                            <div
-                              className="h-full bg-gradient-to-r from-purple-400 to-pink-400"
-                              style={{ width: `${(item.count / stats.total) * 100}%` }}
-                            />
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                  <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-4 border border-blue-200">
+                    <div className="text-blue-600 font-semibold">最低分数</div>
+                    <div className="text-3xl font-bold text-blue-700 mt-2">{stats.minScore}</div>
                   </div>
-
-                  <div className="bg-white rounded-xl shadow-sm p-6">
-                    <h3 className="text-lg font-bold text-slate-800 mb-4">依恋风格分布</h3>
-                    <div className="space-y-3">
-                      {stats.attachmentDistribution.map((item: any) => (
-                        <div key={item.style}>
-                          <div className="flex justify-between text-sm mb-1">
-                            <span className="text-slate-600">{item.style}</span>
-                            <span className="font-bold text-slate-800">{item.count}</span>
-                          </div>
-                          <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                            <div
-                              className="h-full bg-gradient-to-r from-blue-400 to-cyan-400"
-                              style={{ width: `${(item.count / stats.total) * 100}%` }}
-                            />
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+                  <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg p-4 border border-purple-200">
+                    <div className="text-purple-600 font-semibold">平均分数</div>
+                    <div className="text-3xl font-bold text-purple-700 mt-2">{stats.avgScore}</div>
+                  </div>
+                  <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-4 border border-green-200">
+                    <div className="text-green-600 font-semibold">最高分数</div>
+                    <div className="text-3xl font-bold text-green-700 mt-2">{stats.maxScore}</div>
                   </div>
                 </div>
 
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {stats.categoryDistribution && stats.categoryDistribution.length > 0 && (
+                    <div className="bg-white rounded-xl shadow-sm p-6">
+                      <h3 className="text-lg font-bold text-slate-800 mb-4">LHI类别分布</h3>
+                      <ResponsiveContainer width="100%" height={300}>
+                        <PieChart>
+                          <Pie
+                            data={stats.categoryDistribution.map((item: any) => ({ name: item.category, value: item.count }))}
+                            cx="50%"
+                            cy="50%"
+                            labelLine={false}
+                            label={({ name, value }) => `${name}: ${value}`}
+                            outerRadius={80}
+                            fill="#8884d8"
+                            dataKey="value"
+                          >
+                            <Cell fill="#a855f7" />
+                            <Cell fill="#ec4899" />
+                            <Cell fill="#f97316" />
+                            <Cell fill="#06b6d4" />
+                            <Cell fill="#10b981" />
+                            <Cell fill="#f59e0b" />
+                          </Pie>
+                          <Tooltip />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                  )}
+
+                  {stats.attachmentDistribution && stats.attachmentDistribution.length > 0 && (
+                    <div className="bg-white rounded-xl shadow-sm p-6">
+                      <h3 className="text-lg font-bold text-slate-800 mb-4">依恋风格分布</h3>
+                      <ResponsiveContainer width="100%" height={300}>
+                        <BarChart
+                          data={stats.attachmentDistribution.map((item: any) => ({ style: item.style, count: item.count }))}
+                          margin={{ top: 20, right: 30, left: 0, bottom: 20 }}
+                        >
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis dataKey="style" angle={-45} textAnchor="end" height={80} />
+                          <YAxis />
+                          <Tooltip />
+                          <Bar dataKey="count" fill="#3b82f6" radius={[8, 8, 0, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  )}
+                </div>
+
+                {stats.dailyStats && stats.dailyStats.length > 0 && (
+                  <div className="bg-white rounded-xl shadow-sm p-6">
+                    <h3 className="text-lg font-bold text-slate-800 mb-4">最近30天评估趋势</h3>
+                    <ResponsiveContainer width="100%" height={300}>
+                      <LineChart
+                        data={stats.dailyStats}
+                        margin={{ top: 5, right: 30, left: 0, bottom: 5 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis
+                          dataKey="date"
+                          stroke="#94a3b8"
+                          tick={{ fontSize: 12 }}
+                        />
+                        <YAxis stroke="#94a3b8" />
+                        <Tooltip
+                          contentStyle={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0' }}
+                        />
+                        <Legend />
+                        <Line
+                          type="monotone"
+                          dataKey="count"
+                          stroke="#a855f7"
+                          strokeWidth={2}
+                          dot={{ fill: '#a855f7', r: 4 }}
+                          activeDot={{ r: 6 }}
+                          name="评估数量"
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+
                 <div className="bg-white rounded-xl shadow-sm p-6">
                   <h3 className="text-lg font-bold text-slate-800 mb-4">最近评估</h3>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead className="bg-slate-50">
-                        <tr>
-                          <th className="px-4 py-3 text-left text-slate-600 font-medium">分数</th>
-                          <th className="px-4 py-3 text-left text-slate-600 font-medium">类别</th>
-                          <th className="px-4 py-3 text-left text-slate-600 font-medium">依恋风格</th>
-                          <th className="px-4 py-3 text-left text-slate-600 font-medium">日期</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {stats.recentAssessments.map((assessment: any) => (
-                          <tr key={assessment.id} className="border-t border-slate-100">
-                            <td className="px-4 py-3 font-bold text-purple-600">{assessment.totalScore}</td>
-                            <td className="px-4 py-3 text-slate-700">{assessment.category}</td>
-                            <td className="px-4 py-3 text-slate-600 text-xs">{assessment.attachmentStyle}</td>
-                            <td className="px-4 py-3 text-slate-500 text-xs">
-                              {new Date(assessment.createdAt).toLocaleDateString()}
-                            </td>
+                  {stats.recentAssessments && stats.recentAssessments.length > 0 ? (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead className="bg-slate-50">
+                          <tr>
+                            <th className="px-4 py-3 text-left text-slate-600 font-medium">分数</th>
+                            <th className="px-4 py-3 text-left text-slate-600 font-medium">类别</th>
+                            <th className="px-4 py-3 text-left text-slate-600 font-medium">依恋风格</th>
+                            <th className="px-4 py-3 text-left text-slate-600 font-medium">日期</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                        </thead>
+                        <tbody>
+                          {stats.recentAssessments.map((assessment: any) => (
+                            <tr key={assessment.id} className="border-t border-slate-100 hover:bg-slate-50">
+                              <td className="px-4 py-3 font-bold text-purple-600">{assessment.totalScore}</td>
+                              <td className="px-4 py-3 text-slate-700">{assessment.category}</td>
+                              <td className="px-4 py-3 text-slate-600 text-xs">{assessment.attachmentStyle}</td>
+                              <td className="px-4 py-3 text-slate-500 text-xs">
+                                {new Date(assessment.createdAt).toLocaleDateString()}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-slate-500">暂无评估数据</div>
+                  )}
                 </div>
               </div>
             )}
@@ -233,32 +292,39 @@ const Dashboard: React.FC<DashboardProps> = ({ admin, onLogout }) => {
             {activeTab === 'assessments' && (
               <div className="bg-white rounded-xl shadow-sm p-6">
                 <h3 className="text-lg font-bold text-slate-800 mb-4">所有评估记录</h3>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead className="bg-slate-50">
-                      <tr>
-                        <th className="px-4 py-3 text-left text-slate-600 font-medium">评估ID</th>
-                        <th className="px-4 py-3 text-left text-slate-600 font-medium">分数</th>
-                        <th className="px-4 py-3 text-left text-slate-600 font-medium">类别</th>
-                        <th className="px-4 py-3 text-left text-slate-600 font-medium">兑换码</th>
-                        <th className="px-4 py-3 text-left text-slate-600 font-medium">评估日期</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {assessments.map((assessment) => (
-                        <tr key={assessment.id} className="border-t border-slate-100 hover:bg-slate-50">
-                          <td className="px-4 py-3 text-slate-500 text-xs font-mono">{assessment.id.slice(0, 8)}</td>
-                          <td className="px-4 py-3 font-bold text-purple-600">{assessment.totalScore}</td>
-                          <td className="px-4 py-3 text-slate-700">{assessment.category}</td>
-                          <td className="px-4 py-3 text-xs font-mono text-slate-600">{assessment.accessCode.code}</td>
-                          <td className="px-4 py-3 text-slate-500 text-xs">
-                            {new Date(assessment.createdAt).toLocaleString()}
-                          </td>
+                {assessments.length > 0 ? (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead className="bg-slate-50">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-slate-600 font-medium">评估ID</th>
+                          <th className="px-4 py-3 text-left text-slate-600 font-medium">分数</th>
+                          <th className="px-4 py-3 text-left text-slate-600 font-medium">类别</th>
+                          <th className="px-4 py-3 text-left text-slate-600 font-medium">兑换码</th>
+                          <th className="px-4 py-3 text-left text-slate-600 font-medium">评估日期</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                      </thead>
+                      <tbody>
+                        {assessments.map((assessment) => (
+                          <tr key={assessment.id} className="border-t border-slate-100 hover:bg-slate-50">
+                            <td className="px-4 py-3 text-slate-500 text-xs font-mono">{assessment.id.slice(0, 8)}</td>
+                            <td className="px-4 py-3 font-bold text-purple-600">{assessment.totalScore}</td>
+                            <td className="px-4 py-3 text-slate-700">{assessment.category}</td>
+                            <td className="px-4 py-3 text-xs font-mono text-slate-600">{assessment.accessCode.code}</td>
+                            <td className="px-4 py-3 text-slate-500 text-xs">
+                              {new Date(assessment.createdAt).toLocaleString()}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="text-center py-12">
+                    <div className="text-5xl mb-4">📭</div>
+                    <div className="text-slate-500">暂无评估记录</div>
+                  </div>
+                )}
               </div>
             )}
 

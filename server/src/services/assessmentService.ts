@@ -142,10 +142,10 @@ export class AssessmentService {
     });
 
     const dailyStats = await prisma.$queryRaw<Array<{ date: string; count: number }>>`
-      SELECT DATE(createdAt) as date, COUNT(*) as count
-      FROM assessments
-      WHERE createdAt >= DATE('now', '-30 days')
-      GROUP BY DATE(createdAt)
+      SELECT DATE("createdAt") as date, COUNT(*) as count
+      FROM "Assessment"
+      WHERE "createdAt" >= CURRENT_DATE - INTERVAL '30 days'
+      GROUP BY DATE("createdAt")
       ORDER BY date DESC
     `;
 
