@@ -33,7 +33,7 @@ class AdminApi {
   }
 
   async login(email: string, password: string) {
-    return this.request('/auth/admin-login', {
+    return this.request('/auth/admin/login', {
       method: 'POST',
       body: JSON.stringify({ email, password }),
     });
