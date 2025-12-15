@@ -19,13 +19,14 @@ const AdminApp: React.FC = () => {
   useEffect(() => {
     const token = localStorage.getItem('admin_token');
     const adminData = localStorage.getItem('admin_data');
-    
+
     if (token && adminData) {
       try {
         const admin = JSON.parse(adminData);
         setAuthState({ isAuthenticated: true, token, admin });
         adminApi.setToken(token);
       } catch (e) {
+        console.error('Failed to parse admin data:', e);
         localStorage.removeItem('admin_token');
         localStorage.removeItem('admin_data');
       }

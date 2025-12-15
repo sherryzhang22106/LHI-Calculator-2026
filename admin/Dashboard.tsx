@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { adminApi } from './services/adminApi';
 
 interface DashboardProps {
@@ -53,12 +52,11 @@ const Dashboard: React.FC<DashboardProps> = ({ admin, onLogout }) => {
     try {
       const result = await adminApi.generateCodes(generateCount);
       alert(`成功生成 ${generateCount} 个兑换码！`);
-      
-      // Store newly generated codes for export
+
       if (result && result.codes) {
         setNewlyGeneratedCodes(result.codes);
       }
-      
+
       loadData();
     } catch (error) {
       alert('生成兑换码失败');
@@ -71,7 +69,6 @@ const Dashboard: React.FC<DashboardProps> = ({ admin, onLogout }) => {
       return;
     }
 
-    // Create CSV content
     const headers = ['兑换码', '批次ID', '生成时间', '状态'];
     const rows = newlyGeneratedCodes.map(code => [
       code.code,
@@ -79,18 +76,17 @@ const Dashboard: React.FC<DashboardProps> = ({ admin, onLogout }) => {
       new Date(code.createdAt).toLocaleString('zh-CN'),
       code.isUsed ? '已使用' : '未使用'
     ]);
-    
+
     const csvContent = [
       headers.join(','),
       ...rows.map(row => row.join(','))
     ].join('\n');
 
-    // Add BOM for Excel to recognize UTF-8
     const BOM = '\uFEFF';
     const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     const url = URL.createObjectURL(blob);
-    
+
     link.setAttribute('href', url);
     link.setAttribute('download', `兑换码_${new Date().toLocaleDateString('zh-CN').replace(/\//g, '-')}.csv`);
     link.style.visibility = 'hidden';
@@ -174,84 +170,33 @@ const Dashboard: React.FC<DashboardProps> = ({ admin, onLogout }) => {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  {stats.categoryDistribution && stats.categoryDistribution.length > 0 && (
-                    <div className="bg-white rounded-xl shadow-sm p-6">
-                      <h3 className="text-lg font-bold text-slate-800 mb-4">LHI类别分布</h3>
-                      <ResponsiveContainer width="100%" height={300}>
-                        <PieChart>
-                          <Pie
-                            data={stats.categoryDistribution.map((item: any) => ({ name: item.category, value: item.count }))}
-                            cx="50%"
-                            cy="50%"
-                            labelLine={false}
-                            label={({ name, value }) => `${name}: ${value}`}
-                            outerRadius={80}
-                            fill="#8884d8"
-                            dataKey="value"
-                          >
-                            <Cell fill="#a855f7" />
-                            <Cell fill="#ec4899" />
-                            <Cell fill="#f97316" />
-                            <Cell fill="#06b6d4" />
-                            <Cell fill="#10b981" />
-                            <Cell fill="#f59e0b" />
-                          </Pie>
-                          <Tooltip />
-                        </PieChart>
-                      </ResponsiveContainer>
-                    </div>
-                  )}
-
-                  {stats.attachmentDistribution && stats.attachmentDistribution.length > 0 && (
-                    <div className="bg-white rounded-xl shadow-sm p-6">
-                      <h3 className="text-lg font-bold text-slate-800 mb-4">依恋风格分布</h3>
-                      <ResponsiveContainer width="100%" height={300}>
-                        <BarChart
-                          data={stats.attachmentDistribution.map((item: any) => ({ style: item.style, count: item.count }))}
-                          margin={{ top: 20, right: 30, left: 0, bottom: 20 }}
-                        >
-                          <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis dataKey="style" angle={-45} textAnchor="end" height={80} />
-                          <YAxis />
-                          <Tooltip />
-                          <Bar dataKey="count" fill="#3b82f6" radius={[8, 8, 0, 0]} />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </div>
-                  )}
-                </div>
-
-                {stats.dailyStats && stats.dailyStats.length > 0 && (
+                {/* Category Distribution */}
+                {stats.categoryDistribution && stats.categoryDistribution.length > 0 && (
                   <div className="bg-white rounded-xl shadow-sm p-6">
-                    <h3 className="text-lg font-bold text-slate-800 mb-4">最近30天评估趋势</h3>
-                    <ResponsiveContainer width="100%" height={300}>
-                      <LineChart
-                        data={stats.dailyStats}
-                        margin={{ top: 5, right: 30, left: 0, bottom: 5 }}
-                      >
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis
-                          dataKey="date"
-                          stroke="#94a3b8"
-                          tick={{ fontSize: 12 }}
-                        />
-                        <YAxis stroke="#94a3b8" />
-                        <Tooltip
-                          contentStyle={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0' }}
-                        />
-                        <Legend />
-                        <Line
-                          type="monotone"
-                          dataKey="count"
-                          stroke="#a855f7"
-                          strokeWidth={2}
-                          dot={{ fill: '#a855f7', r: 4 }}
-                          activeDot={{ r: 6 }}
-                          name="评估数量"
-                        />
-                      </LineChart>
-                    </ResponsiveContainer>
+                    <h3 className="text-lg font-bold text-slate-800 mb-4">LHI类别分布</h3>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                      {stats.categoryDistribution.map((item: any, index: number) => (
+                        <div key={index} className="bg-slate-50 rounded-lg p-4 text-center">
+                          <div className="text-2xl font-bold text-purple-600">{item.count}</div>
+                          <div className="text-sm text-slate-600 mt-1">{item.category}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Attachment Distribution */}
+                {stats.attachmentDistribution && stats.attachmentDistribution.length > 0 && (
+                  <div className="bg-white rounded-xl shadow-sm p-6">
+                    <h3 className="text-lg font-bold text-slate-800 mb-4">依恋风格分布</h3>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                      {stats.attachmentDistribution.map((item: any, index: number) => (
+                        <div key={index} className="bg-slate-50 rounded-lg p-4 text-center">
+                          <div className="text-2xl font-bold text-blue-600">{item.count}</div>
+                          <div className="text-sm text-slate-600 mt-1">{item.style}</div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
 

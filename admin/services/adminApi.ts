@@ -19,17 +19,25 @@ class AdminApi {
       headers['Authorization'] = `Bearer ${this.token}`;
     }
 
-    const response = await fetch(`${API_BASE}${endpoint}`, {
-      ...options,
-      headers,
-    });
+    try {
+      const response = await fetch(`${API_BASE}${endpoint}`, {
+        ...options,
+        headers,
+      });
 
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ error: 'Request failed' }));
-      throw new Error(error.error || 'Request failed');
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: 'Request failed' }));
+        throw new Error(error.error || `Request failed with status ${response.status}`);
+      }
+
+      return response.json();
+    } catch (error: any) {
+      // Handle network errors and other fetch errors
+      if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
+        throw new Error('无法连接到服务器，请检查网络连接和服务器状态');
+      }
+      throw error;
     }
-
-    return response.json();
   }
 
   async login(email: string, password: string) {
