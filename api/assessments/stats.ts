@@ -5,6 +5,15 @@ import jwt from 'jsonwebtoken';
 const prisma = new PrismaClient();
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // Set CORS headers
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
@@ -18,7 +27,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const token = authHeader.substring(7);
     const jwtSecret = process.env.JWT_SECRET || 'default-secret-key';
-    
+
     try {
       jwt.verify(token, jwtSecret);
     } catch (error) {
@@ -26,14 +35,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     // Get statistics
-    const total = await db.assessment.count();
-    
-    const assessments = await db.assessment.findMany();
-    
-    // Calculate average score
-    const avgScore = assessments.length > 0
-      ? Math.round(assessments.reduce((sum, a) => sum + a.totalScore, 0) / assessments.length)
+    const total = await prisma.assessment.count();
+
+    const assessments = await prisma.assessment.findMany();
+
+    // Calculate scores
+    const scores = assessments.map(a => a.totalScore);
+    const avgScore = scores.length > 0
+      ? Math.round(scores.reduce((sum, s) => sum + s, 0) / scores.length)
       : 0;
+    const minScore = scores.length > 0 ? Math.min(...scores) : 0;
+    const maxScore = scores.length > 0 ? Math.max(...scores) : 0;
 
     // Category distribution
     const categoryCount: Record<string, number> = {};
@@ -56,17 +68,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }));
 
     // Get recent assessments
-    const recentAssessments = await db.assessment.findMany({
+    const recentAssessments = await prisma.assessment.findMany({
       take: 10,
-      orderBy: { createdAt: 'desc' }
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        totalScore: true,
+        category: true,
+        attachmentStyle: true,
+        createdAt: true,
+      }
     });
 
     return res.status(200).json({
       total,
       avgScore,
+      minScore,
+      maxScore,
       categoryDistribution,
       attachmentDistribution,
-      recentAssessments
+      recentAssessments,
+      dailyStats: []
     });
   } catch (error: any) {
     console.error('Get stats error:', error);
