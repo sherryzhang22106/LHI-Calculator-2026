@@ -4,9 +4,10 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
 // Master codes that can be reused (per product)
+// Each master code maps to an array of allowed product types
 const MASTER_CODES: Record<string, string[]> = {
-  'LHI159951': ['LHI', 'ALL'],
-  'LCI2025': ['LCI', 'ALL'],
+  'LHI159951': ['LHI'],      // Only for LHI
+  'LCI2025': ['LCI'],        // Only for LCI
 };
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -35,7 +36,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Check if it's a master code for this product
     if (MASTER_CODES[upperCode]) {
       const allowedProducts = MASTER_CODES[upperCode];
-      if (allowedProducts.includes(productType) || allowedProducts.includes('ALL')) {
+      if (allowedProducts.includes(productType)) {
         // Find or create the master code in database
         let accessCode = await prisma.accessCode.findUnique({
           where: { code: upperCode },
@@ -45,7 +46,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           accessCode = await prisma.accessCode.create({
             data: {
               code: upperCode,
-              productType: allowedProducts.includes('ALL') ? 'ALL' : productType,
+              productType: productType,
               batchId: 'MASTER',
             },
           });
