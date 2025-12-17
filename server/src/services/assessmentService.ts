@@ -1,12 +1,13 @@
 import prisma from '../config/database';
-import { AccessCodeService } from './accessCodeService';
+import { AccessCodeService, ProductType } from './accessCodeService';
 import { DeepSeekService } from './deepseekService';
 
 export interface AssessmentData {
   accessCode: string;
+  productType?: ProductType;
   totalScore: number;
   category: string;
-  attachmentStyle: string;
+  attachmentStyle?: string;  // Optional for LCI
   dimensions: any[];
   answers: Record<number, number>;
   userId?: string;
@@ -16,7 +17,8 @@ export interface AssessmentData {
 
 export class AssessmentService {
   static async createAssessment(data: AssessmentData) {
-    const validation = await AccessCodeService.validateCode(data.accessCode);
+    const productType = data.productType || 'LHI';
+    const validation = await AccessCodeService.validateCode(data.accessCode, productType);
     
     if (!validation.valid || !validation.accessCodeId) {
       throw new Error(validation.message || 'Invalid access code');
@@ -40,9 +42,10 @@ export class AssessmentService {
       data: {
         accessCodeId: validation.accessCodeId,
         userId: data.userId,
+        productType,
         totalScore: data.totalScore,
         category: data.category,
-        attachmentStyle: data.attachmentStyle,
+        attachmentStyle: data.attachmentStyle || null,
         dimensions: JSON.stringify(data.dimensions),
         answers: JSON.stringify(data.answers),
         aiAnalysis,

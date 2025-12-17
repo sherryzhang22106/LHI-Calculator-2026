@@ -1,31 +1,40 @@
 import prisma from '../config/database';
 import crypto from 'crypto';
 
+// Product types supported
+export type ProductType = 'LHI' | 'LCI' | 'ALL';
+
+// Master codes that can be reused (per product)
+const MASTER_CODES: Record<string, ProductType[]> = {
+  'LHI159951': ['LHI', 'ALL'],
+  'LCI2025': ['LCI', 'ALL'],
+};
+
 export class AccessCodeService {
-  static async generateCodes(count: number, batchId?: string): Promise<string[]> {
-    const codes: string[] = [];
+  static async generateCodes(count: number, batchId?: string, productType: ProductType = 'LHI'): Promise<any[]> {
+    const codes: any[] = [];
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    
+
+    // SQLite doesn't support skipDuplicates in createMany
+    // Use individual creates instead
+    const batchIdValue = batchId || `BATCH_${Date.now()}`;
+
     for (let i = 0; i < count; i++) {
       let code = '';
       for (let j = 0; j < 8; j++) {
         const randomIndex = crypto.randomInt(0, chars.length);
         code += chars[randomIndex];
       }
-      codes.push(code);
-    }
 
-    // SQLite doesn't support skipDuplicates in createMany
-    // Use individual creates instead
-    const batchIdValue = batchId || `BATCH_${Date.now()}`;
-    for (const code of codes) {
       try {
-        await prisma.accessCode.create({
+        const created = await prisma.accessCode.create({
           data: {
             code,
+            productType,
             batchId: batchIdValue,
           },
         });
+        codes.push(created);
       } catch (error: any) {
         // Skip if duplicate
         if (error.code === 'P2002') {
@@ -39,18 +48,43 @@ export class AccessCodeService {
     return codes;
   }
 
-  static async validateCode(code: string): Promise<{ valid: boolean; accessCodeId?: string; message?: string }> {
+  static async validateCode(code: string, productType: ProductType = 'LHI'): Promise<{ valid: boolean; accessCodeId?: string; message?: string }> {
+    const upperCode = code.toUpperCase();
+
+    // Check if it's a master code for this product
+    if (MASTER_CODES[upperCode]) {
+      const allowedProducts = MASTER_CODES[upperCode];
+      if (allowedProducts.includes(productType) || allowedProducts.includes('ALL')) {
+        // Find or create the master code in database
+        let accessCode = await prisma.accessCode.findUnique({
+          where: { code: upperCode },
+        });
+
+        if (!accessCode) {
+          accessCode = await prisma.accessCode.create({
+            data: {
+              code: upperCode,
+              productType: allowedProducts.includes('ALL') ? 'ALL' : productType,
+              batchId: 'MASTER',
+            },
+          });
+        }
+
+        return { valid: true, accessCodeId: accessCode.id };
+      }
+    }
+
     const accessCode = await prisma.accessCode.findUnique({
-      where: { code: code.toUpperCase() },
+      where: { code: upperCode },
     });
 
     if (!accessCode) {
       return { valid: false, message: 'Invalid access code' };
     }
 
-    // Master code can be reused
-    if (accessCode.code === 'LHI159951') {
-      return { valid: true, accessCodeId: accessCode.id };
+    // Check if code is valid for this product type
+    if (accessCode.productType !== 'ALL' && accessCode.productType !== productType) {
+      return { valid: false, message: `This code is not valid for ${productType}` };
     }
 
     if (accessCode.isUsed) {
@@ -65,8 +99,8 @@ export class AccessCodeService {
       where: { id: accessCodeId },
     });
 
-    // Don't mark master code as used
-    if (code?.code === 'LHI159951') {
+    // Don't mark master codes as used
+    if (code && MASTER_CODES[code.code]) {
       return;
     }
 
@@ -80,17 +114,40 @@ export class AccessCodeService {
     });
   }
 
-  static async getCodeStats() {
-    const total = await prisma.accessCode.count();
-    const used = await prisma.accessCode.count({ where: { isUsed: true } });
+  static async getCodeStats(productType?: ProductType) {
+    const where = productType ? { productType } : {};
+    const total = await prisma.accessCode.count({ where });
+    const used = await prisma.accessCode.count({ where: { ...where, isUsed: true } });
     const available = total - used;
 
-    return { total, used, available };
+    // Get stats per product if no filter
+    let byProduct = null;
+    if (!productType) {
+      const lhiTotal = await prisma.accessCode.count({ where: { productType: 'LHI' } });
+      const lhiUsed = await prisma.accessCode.count({ where: { productType: 'LHI', isUsed: true } });
+      const lciTotal = await prisma.accessCode.count({ where: { productType: 'LCI' } });
+      const lciUsed = await prisma.accessCode.count({ where: { productType: 'LCI', isUsed: true } });
+      const allTotal = await prisma.accessCode.count({ where: { productType: 'ALL' } });
+      const allUsed = await prisma.accessCode.count({ where: { productType: 'ALL', isUsed: true } });
+
+      byProduct = {
+        LHI: { total: lhiTotal, used: lhiUsed, available: lhiTotal - lhiUsed },
+        LCI: { total: lciTotal, used: lciUsed, available: lciTotal - lciUsed },
+        ALL: { total: allTotal, used: allUsed, available: allTotal - allUsed },
+      };
+    }
+
+    return { total, used, available, byProduct };
   }
 
-  static async listCodes(page: number = 1, limit: number = 50, filter?: 'all' | 'used' | 'available') {
+  static async listCodes(page: number = 1, limit: number = 50, filter?: 'all' | 'used' | 'available', productType?: ProductType) {
     const skip = (page - 1) * limit;
-    const where = filter === 'used' ? { isUsed: true } : filter === 'available' ? { isUsed: false } : {};
+    const where: any = {};
+
+    if (filter === 'used') where.isUsed = true;
+    else if (filter === 'available') where.isUsed = false;
+
+    if (productType) where.productType = productType;
 
     const [codes, total] = await Promise.all([
       prisma.accessCode.findMany({
@@ -101,6 +158,7 @@ export class AccessCodeService {
         select: {
           id: true,
           code: true,
+          productType: true,
           isUsed: true,
           usedAt: true,
           usedByIp: true,

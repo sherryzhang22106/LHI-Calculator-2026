@@ -1,6 +1,8 @@
-const API_BASE = typeof window !== 'undefined' && window.location.hostname === 'localhost' 
+const API_BASE = typeof window !== 'undefined' && window.location.hostname === 'localhost'
   ? 'http://localhost:5001/api'
   : '/api';
+
+export type ProductType = 'LHI' | 'LCI' | 'ALL';
 
 class AdminApi {
   private token: string | null = null;
@@ -47,26 +49,32 @@ class AdminApi {
     });
   }
 
-  async getStatistics() {
-    return this.request('/assessments/stats');
+  async getStatistics(productType?: ProductType) {
+    const query = productType ? `?productType=${productType}` : '';
+    return this.request(`/assessments/stats${query}`);
   }
 
-  async listAssessments(page: number, limit: number) {
-    return this.request(`/assessments/list?page=${page}&limit=${limit}`);
+  async listAssessments(page: number, limit: number, productType?: ProductType) {
+    let query = `?page=${page}&limit=${limit}`;
+    if (productType) query += `&productType=${productType}`;
+    return this.request(`/assessments/list${query}`);
   }
 
-  async getCodeStats() {
-    return this.request('/access-codes/stats');
+  async getCodeStats(productType?: ProductType) {
+    const query = productType ? `?productType=${productType}` : '';
+    return this.request(`/access-codes/stats${query}`);
   }
 
-  async listCodes(page: number, limit: number, filter: 'all' | 'used' | 'available') {
-    return this.request(`/access-codes/list?page=${page}&limit=${limit}&filter=${filter}`);
+  async listCodes(page: number, limit: number, filter: 'all' | 'used' | 'available', productType?: ProductType) {
+    let query = `?page=${page}&limit=${limit}&filter=${filter}`;
+    if (productType) query += `&productType=${productType}`;
+    return this.request(`/access-codes/list${query}`);
   }
 
-  async generateCodes(count: number) {
+  async generateCodes(count: number, productType: ProductType = 'LHI') {
     return this.request('/access-codes/generate', {
       method: 'POST',
-      body: JSON.stringify({ count }),
+      body: JSON.stringify({ count, productType }),
     });
   }
 }

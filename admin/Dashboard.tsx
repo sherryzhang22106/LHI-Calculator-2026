@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { adminApi } from './services/adminApi';
+import { adminApi, ProductType } from './services/adminApi';
 
 interface DashboardProps {
   admin: { id: string; email: string; name: string };
@@ -8,37 +8,45 @@ interface DashboardProps {
 
 type Tab = 'overview' | 'assessments' | 'codes';
 
+const PRODUCT_LABELS: Record<ProductType, string> = {
+  LHI: '爱情健康指数 (LHI)',
+  LCI: '爱情浓度指数 (LCI)',
+  ALL: '通用兑换码',
+};
+
 const Dashboard: React.FC<DashboardProps> = ({ admin, onLogout }) => {
   const [activeTab, setActiveTab] = useState<Tab>('overview');
+  const [selectedProduct, setSelectedProduct] = useState<ProductType | undefined>(undefined);
   const [stats, setStats] = useState<any>(null);
   const [codeStats, setCodeStats] = useState<any>(null);
   const [assessments, setAssessments] = useState<any[]>([]);
   const [codes, setCodes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [generateCount, setGenerateCount] = useState(10);
+  const [generateProductType, setGenerateProductType] = useState<ProductType>('LHI');
   const [newlyGeneratedCodes, setNewlyGeneratedCodes] = useState<any[]>([]);
 
   useEffect(() => {
     loadData();
-  }, [activeTab]);
+  }, [activeTab, selectedProduct]);
 
   const loadData = async () => {
     setLoading(true);
     try {
       if (activeTab === 'overview') {
         const [statsData, codeStatsData] = await Promise.all([
-          adminApi.getStatistics(),
-          adminApi.getCodeStats(),
+          adminApi.getStatistics(selectedProduct),
+          adminApi.getCodeStats(selectedProduct),
         ]);
         setStats(statsData);
         setCodeStats(codeStatsData);
       } else if (activeTab === 'assessments') {
-        const data = await adminApi.listAssessments(1, 20);
+        const data = await adminApi.listAssessments(1, 20, selectedProduct);
         setAssessments(data.assessments);
       } else if (activeTab === 'codes') {
-        const data = await adminApi.listCodes(1, 50, 'all');
+        const data = await adminApi.listCodes(1, 50, 'all', selectedProduct);
         setCodes(data.codes);
-        const codeStatsData = await adminApi.getCodeStats();
+        const codeStatsData = await adminApi.getCodeStats(selectedProduct);
         setCodeStats(codeStatsData);
       }
     } catch (error) {
@@ -50,8 +58,8 @@ const Dashboard: React.FC<DashboardProps> = ({ admin, onLogout }) => {
 
   const handleGenerateCodes = async () => {
     try {
-      const result = await adminApi.generateCodes(generateCount);
-      alert(`成功生成 ${generateCount} 个兑换码！`);
+      const result = await adminApi.generateCodes(generateCount, generateProductType);
+      alert(`成功生成 ${generateCount} 个 ${PRODUCT_LABELS[generateProductType]} 兑换码！`);
 
       if (result && result.codes) {
         setNewlyGeneratedCodes(result.codes);
@@ -69,9 +77,10 @@ const Dashboard: React.FC<DashboardProps> = ({ admin, onLogout }) => {
       return;
     }
 
-    const headers = ['兑换码', '批次ID', '生成时间', '状态'];
+    const headers = ['兑换码', '产品类型', '批次ID', '生成时间', '状态'];
     const rows = newlyGeneratedCodes.map(code => [
       code.code,
+      code.productType || 'LHI',
       code.batchId,
       new Date(code.createdAt).toLocaleString('zh-CN'),
       code.isUsed ? '已使用' : '未使用'
@@ -104,7 +113,7 @@ const Dashboard: React.FC<DashboardProps> = ({ admin, onLogout }) => {
               <span className="text-white text-xl">📊</span>
             </div>
             <div>
-              <h1 className="text-xl font-bold text-slate-800">LHI Admin</h1>
+              <h1 className="text-xl font-bold text-slate-800">爱情测试管理后台</h1>
               <p className="text-xs text-slate-500">{admin.email}</p>
             </div>
           </div>
@@ -118,6 +127,38 @@ const Dashboard: React.FC<DashboardProps> = ({ admin, onLogout }) => {
       </nav>
 
       <div className="max-w-7xl mx-auto p-6">
+        {/* Product Type Filter */}
+        <div className="flex items-center gap-4 mb-4">
+          <span className="text-sm font-medium text-slate-600">筛选产品：</span>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setSelectedProduct(undefined)}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                selectedProduct === undefined
+                  ? 'bg-slate-800 text-white'
+                  : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+              }`}
+            >
+              全部
+            </button>
+            {(['LHI', 'LCI'] as ProductType[]).map((pt) => (
+              <button
+                key={pt}
+                onClick={() => setSelectedProduct(pt)}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                  selectedProduct === pt
+                    ? pt === 'LHI'
+                      ? 'bg-purple-500 text-white'
+                      : 'bg-pink-500 text-white'
+                    : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                }`}
+              >
+                {pt}
+              </button>
+            ))}
+          </div>
+        </div>
+
         <div className="flex gap-2 mb-6 bg-white p-2 rounded-lg shadow-sm">
           {[
             { id: 'overview', label: '数据概览', icon: '📈' },
@@ -277,16 +318,25 @@ const Dashboard: React.FC<DashboardProps> = ({ admin, onLogout }) => {
               <div className="space-y-6">
                 <div className="bg-white rounded-xl shadow-sm p-6">
                   <h3 className="text-lg font-bold text-slate-800 mb-4">生成兑换码</h3>
-                  <div className="flex gap-4">
+                  <div className="flex flex-wrap gap-4 items-center">
                     <input
                       type="number"
                       min="1"
                       max="1000"
                       value={generateCount}
                       onChange={(e) => setGenerateCount(parseInt(e.target.value))}
-                      className="px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-purple-500 outline-none"
+                      className="px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-purple-500 outline-none w-24"
                       placeholder="数量"
                     />
+                    <select
+                      value={generateProductType}
+                      onChange={(e) => setGenerateProductType(e.target.value as ProductType)}
+                      className="px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-purple-500 outline-none"
+                    >
+                      <option value="LHI">LHI - 爱情健康指数</option>
+                      <option value="LCI">LCI - 爱情浓度指数</option>
+                      <option value="ALL">通用 - 所有产品</option>
+                    </select>
                     <button
                       onClick={handleGenerateCodes}
                       className="px-6 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg font-medium hover:shadow-lg transition-all"
@@ -298,14 +348,20 @@ const Dashboard: React.FC<DashboardProps> = ({ admin, onLogout }) => {
                         onClick={handleExportCodes}
                         className="px-6 py-2 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-lg font-medium hover:shadow-lg transition-all"
                       >
-                        📥 导出新生成的兑换码 ({newlyGeneratedCodes.length})
+                        导出兑换码 ({newlyGeneratedCodes.length})
                       </button>
                     )}
                   </div>
-                  <div className="mt-4 flex gap-4 text-sm">
+                  <div className="mt-4 flex flex-wrap gap-4 text-sm">
                     <span className="text-slate-600">总数: <strong>{codeStats.total}</strong></span>
                     <span className="text-green-600">可用: <strong>{codeStats.available}</strong></span>
                     <span className="text-slate-400">已用: <strong>{codeStats.used}</strong></span>
+                    {codeStats.byProduct && (
+                      <>
+                        <span className="text-purple-600">LHI: <strong>{codeStats.byProduct.LHI?.available || 0}</strong></span>
+                        <span className="text-pink-600">LCI: <strong>{codeStats.byProduct.LCI?.available || 0}</strong></span>
+                      </>
+                    )}
                   </div>
                 </div>
 
@@ -316,6 +372,7 @@ const Dashboard: React.FC<DashboardProps> = ({ admin, onLogout }) => {
                       <thead className="bg-slate-50">
                         <tr>
                           <th className="px-4 py-3 text-left text-slate-600 font-medium">兑换码</th>
+                          <th className="px-4 py-3 text-left text-slate-600 font-medium">产品</th>
                           <th className="px-4 py-3 text-left text-slate-600 font-medium">状态</th>
                           <th className="px-4 py-3 text-left text-slate-600 font-medium">批次</th>
                           <th className="px-4 py-3 text-left text-slate-600 font-medium">生成时间</th>
@@ -326,6 +383,15 @@ const Dashboard: React.FC<DashboardProps> = ({ admin, onLogout }) => {
                         {codes.map((code) => (
                           <tr key={code.id} className="border-t border-slate-100">
                             <td className="px-4 py-3 font-mono font-bold text-purple-600">{code.code}</td>
+                            <td className="px-4 py-3">
+                              <span className={`px-2 py-1 rounded text-xs font-medium ${
+                                code.productType === 'LHI' ? 'bg-purple-100 text-purple-700' :
+                                code.productType === 'LCI' ? 'bg-pink-100 text-pink-700' :
+                                'bg-slate-100 text-slate-700'
+                              }`}>
+                                {code.productType || 'LHI'}
+                              </span>
+                            </td>
                             <td className="px-4 py-3">
                               {code.isUsed ? (
                                 <span className="px-2 py-1 bg-slate-100 text-slate-600 rounded text-xs">已使用</span>

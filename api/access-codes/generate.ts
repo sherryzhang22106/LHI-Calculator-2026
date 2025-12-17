@@ -27,20 +27,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const token = authHeader.substring(7);
     const jwtSecret = process.env.JWT_SECRET || 'default-secret-key';
-    
+
     try {
       jwt.verify(token, jwtSecret);
     } catch (error) {
       return res.status(401).json({ error: 'Invalid token' });
     }
 
-    const { count = 1 } = req.body;
+    const { count = 1, productType = 'LHI' } = req.body;
     const batchId = `batch_${Date.now()}`;
     const codes = [];
 
     for (let i = 0; i < count; i++) {
       let code = generateCode();
-      
+
       // Ensure uniqueness
       let existing = await prisma.accessCode.findUnique({ where: { code } });
       while (existing) {
@@ -51,6 +51,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const accessCode = await prisma.accessCode.create({
         data: {
           code,
+          productType,
           batchId,
           isUsed: false
         }

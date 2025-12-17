@@ -23,6 +23,7 @@ model User {
 model AccessCode {
   id          String    @id @default(uuid())
   code        String    @unique
+  productType String    @default("LHI")  // LHI, LCI, or ALL
   isUsed      Boolean   @default(false)
   usedAt      DateTime?
   usedByIp    String?
@@ -31,6 +32,7 @@ model AccessCode {
 
   assessments  Assessment[]
   @@index([code, isUsed])
+  @@index([productType])
   @@map("access_codes")
 }
 
@@ -38,9 +40,10 @@ model Assessment {
   id              String   @id @default(uuid())
   userId          String?
   accessCodeId    String
+  productType     String   @default("LHI")  // LHI or LCI
   totalScore      Int
   category        String
-  attachmentStyle String
+  attachmentStyle String?  // Optional for LCI (uses different fields)
   dimensions      String
   answers         String
   aiAnalysis      String?
@@ -54,6 +57,7 @@ model Assessment {
   @@index([userId])
   @@index([createdAt])
   @@index([accessCodeId])
+  @@index([productType])
   @@map("assessments")
 }
 

@@ -25,7 +25,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const token = authHeader.substring(7);
     const jwtSecret = process.env.JWT_SECRET || 'default-secret-key';
-    
+
     try {
       jwt.verify(token, jwtSecret);
     } catch (error) {
@@ -33,15 +33,35 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const db = getPrisma();
+    const { productType } = req.query;
 
-    const total = await db.accessCode.count();
-    const used = await db.accessCode.count({ where: { isUsed: true } });
+    const where = productType ? { productType: productType as string } : {};
+    const total = await db.accessCode.count({ where });
+    const used = await db.accessCode.count({ where: { ...where, isUsed: true } });
     const available = total - used;
+
+    // Get stats per product if no filter
+    let byProduct = null;
+    if (!productType) {
+      const lhiTotal = await db.accessCode.count({ where: { productType: 'LHI' } });
+      const lhiUsed = await db.accessCode.count({ where: { productType: 'LHI', isUsed: true } });
+      const lciTotal = await db.accessCode.count({ where: { productType: 'LCI' } });
+      const lciUsed = await db.accessCode.count({ where: { productType: 'LCI', isUsed: true } });
+      const allTotal = await db.accessCode.count({ where: { productType: 'ALL' } });
+      const allUsed = await db.accessCode.count({ where: { productType: 'ALL', isUsed: true } });
+
+      byProduct = {
+        LHI: { total: lhiTotal, used: lhiUsed, available: lhiTotal - lhiUsed },
+        LCI: { total: lciTotal, used: lciUsed, available: lciTotal - lciUsed },
+        ALL: { total: allTotal, used: allUsed, available: allTotal - allUsed },
+      };
+    }
 
     return res.status(200).json({
       total,
       used,
-      available
+      available,
+      byProduct
     });
   } catch (error: any) {
     console.error('Get code stats error:', error);
