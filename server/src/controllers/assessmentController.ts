@@ -60,7 +60,8 @@ export class AssessmentController {
 
   static async getStatistics(req: AuthRequest, res: Response) {
     try {
-      const stats = await AssessmentService.getStatistics();
+      const productType = req.query.productType as string | undefined;
+      const stats = await AssessmentService.getStatistics(productType);
       res.json(stats);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
@@ -71,8 +72,9 @@ export class AssessmentController {
     try {
       const page = parseInt(req.query.page as string) || 1;
       const limit = parseInt(req.query.limit as string) || 20;
+      const productType = req.query.productType as string | undefined;
 
-      const result = await AssessmentService.listAssessments(page, limit);
+      const result = await AssessmentService.listAssessments(page, limit, productType);
       res.json(result);
     } catch (error: any) {
       res.status(400).json({ error: error.message });

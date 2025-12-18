@@ -113,26 +113,32 @@ export class AssessmentService {
     }));
   }
 
-  static async getStatistics() {
-    const total = await prisma.assessment.count();
-    
+  static async getStatistics(productType?: string) {
+    const whereClause = productType ? { productType } : {};
+
+    const total = await prisma.assessment.count({ where: whereClause });
+
     const categoryStats = await prisma.assessment.groupBy({
       by: ['category'],
+      where: whereClause,
       _count: true,
     });
 
     const attachmentStats = await prisma.assessment.groupBy({
       by: ['attachmentStyle'],
+      where: whereClause,
       _count: true,
     });
 
     const avgScore = await prisma.assessment.aggregate({
+      where: whereClause,
       _avg: { totalScore: true },
       _min: { totalScore: true },
       _max: { totalScore: true },
     });
 
     const recentAssessments = await prisma.assessment.findMany({
+      where: whereClause,
       take: 10,
       orderBy: { createdAt: 'desc' },
       select: {
@@ -140,17 +146,31 @@ export class AssessmentService {
         totalScore: true,
         category: true,
         attachmentStyle: true,
+        productType: true,
         createdAt: true,
       },
     });
 
-    const dailyStats = await prisma.$queryRaw<Array<{ date: string; count: number }>>`
-      SELECT DATE("createdAt") as date, COUNT(*) as count
-      FROM "assessments"
-      WHERE "createdAt" >= datetime('now', '-30 days')
-      GROUP BY DATE("createdAt")
-      ORDER BY date ASC
-    `;
+    // Use different query based on whether productType filter is applied
+    let dailyStats: Array<{ date: string; count: number }>;
+    if (productType) {
+      dailyStats = await prisma.$queryRaw<Array<{ date: string; count: number }>>`
+        SELECT DATE("createdAt") as date, COUNT(*) as count
+        FROM "assessments"
+        WHERE "createdAt" >= datetime('now', '-30 days')
+        AND "productType" = ${productType}
+        GROUP BY DATE("createdAt")
+        ORDER BY date ASC
+      `;
+    } else {
+      dailyStats = await prisma.$queryRaw<Array<{ date: string; count: number }>>`
+        SELECT DATE("createdAt") as date, COUNT(*) as count
+        FROM "assessments"
+        WHERE "createdAt" >= datetime('now', '-30 days')
+        GROUP BY DATE("createdAt")
+        ORDER BY date ASC
+      `;
+    }
 
     return {
       total,
@@ -164,11 +184,13 @@ export class AssessmentService {
     };
   }
 
-  static async listAssessments(page: number = 1, limit: number = 20) {
+  static async listAssessments(page: number = 1, limit: number = 20, productType?: string) {
     const skip = (page - 1) * limit;
+    const whereClause = productType ? { productType } : {};
 
     const [assessments, total] = await Promise.all([
       prisma.assessment.findMany({
+        where: whereClause,
         skip,
         take: limit,
         orderBy: { createdAt: 'desc' },
@@ -184,7 +206,7 @@ export class AssessmentService {
           },
         },
       }),
-      prisma.assessment.count(),
+      prisma.assessment.count({ where: whereClause }),
     ]);
 
     return {
