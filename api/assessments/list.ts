@@ -25,7 +25,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const token = authHeader.substring(7);
     const jwtSecret = process.env.JWT_SECRET || 'default-secret-key';
-    
+
     try {
       jwt.verify(token, jwtSecret);
     } catch (error) {
@@ -33,13 +33,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const db = getPrisma();
-    const { page = '1', limit = '20' } = req.query;
-    
+    const { page = '1', limit = '20', productType } = req.query;
+
     const pageNum = parseInt(page as string);
     const limitNum = parseInt(limit as string);
     const skip = (pageNum - 1) * limitNum;
 
+    // Build where clause with optional productType filter
+    const whereClause = productType ? { productType: productType as string } : {};
+
     const assessments = await db.assessment.findMany({
+      where: whereClause,
       skip,
       take: limitNum,
       orderBy: { createdAt: 'desc' },
@@ -50,7 +54,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     });
 
-    const total = await db.assessment.count();
+    const total = await db.assessment.count({ where: whereClause });
 
     return res.status(200).json({
       assessments,

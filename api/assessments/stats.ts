@@ -34,10 +34,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(401).json({ error: 'Invalid token' });
     }
 
-    // Get statistics
-    const total = await prisma.assessment.count();
+    // Get productType filter from query
+    const { productType } = req.query;
+    const whereClause = productType ? { productType: productType as string } : {};
 
-    const assessments = await prisma.assessment.findMany();
+    // Get statistics with optional productType filter
+    const total = await prisma.assessment.count({ where: whereClause });
+
+    const assessments = await prisma.assessment.findMany({ where: whereClause });
 
     // Calculate scores
     const scores = assessments.map(a => a.totalScore);
@@ -60,15 +64,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Attachment style distribution
     const attachmentCount: Record<string, number> = {};
     assessments.forEach(a => {
-      attachmentCount[a.attachmentStyle] = (attachmentCount[a.attachmentStyle] || 0) + 1;
+      if (a.attachmentStyle) {
+        attachmentCount[a.attachmentStyle] = (attachmentCount[a.attachmentStyle] || 0) + 1;
+      }
     });
     const attachmentDistribution = Object.entries(attachmentCount).map(([style, count]) => ({
       style,
       count
     }));
 
-    // Get recent assessments
+    // Get recent assessments with optional productType filter
     const recentAssessments = await prisma.assessment.findMany({
+      where: whereClause,
       take: 10,
       orderBy: { createdAt: 'desc' },
       select: {
@@ -76,6 +83,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         totalScore: true,
         category: true,
         attachmentStyle: true,
+        productType: true,
         createdAt: true,
       }
     });
