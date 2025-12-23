@@ -79,7 +79,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
         </form>
 
         <div className="mt-6 text-center text-xs text-slate-400">
-          <p>默认账号: admin@lhi.local / admin123456</p>
+          <p>请联系管理员获取账号密码</p>
         </div>
       </div>
     </div>

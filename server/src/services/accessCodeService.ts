@@ -2,13 +2,15 @@ import prisma from '../config/database';
 import crypto from 'crypto';
 
 // Product types supported
-export type ProductType = 'LHI' | 'LCI' | 'ALL';
+export type ProductType = 'LHI' | 'LCI' | 'ASA' | 'ALL';
 
 // Master codes that can be reused (per product)
 // Each master code maps to an array of allowed product types
 const MASTER_CODES: Record<string, ProductType[]> = {
   'LHI159951': ['LHI'],      // Only for LHI
   'LCI2025': ['LCI'],        // Only for LCI
+  'ASA2025': ['ASA'],        // Only for ASA (依恋风格测评)
+  'ALL2025': ['LHI', 'LCI', 'ASA'],  // All products
 };
 
 export class AccessCodeService {
@@ -57,7 +59,13 @@ export class AccessCodeService {
       const allowedProducts = MASTER_CODES[upperCode];
       if (!allowedProducts.includes(productType)) {
         // Master code exists but not valid for this product
-        return { valid: false, message: `此兑换码不适用于 ${productType === 'LHI' ? '爱情健康指数' : '爱情浓度指数'} 测试` };
+        const productNames: Record<string, string> = {
+          'LHI': '爱情健康指数',
+          'LCI': '爱情浓度指数',
+          'ASA': '依恋风格深度测评',
+          'ALL': '全部产品'
+        };
+        return { valid: false, message: `此兑换码不适用于 ${productNames[productType]} 测试` };
       }
 
       // Valid master code for this product - find or create in database
@@ -131,12 +139,15 @@ export class AccessCodeService {
       const lhiUsed = await prisma.accessCode.count({ where: { productType: 'LHI', isUsed: true } });
       const lciTotal = await prisma.accessCode.count({ where: { productType: 'LCI' } });
       const lciUsed = await prisma.accessCode.count({ where: { productType: 'LCI', isUsed: true } });
+      const asaTotal = await prisma.accessCode.count({ where: { productType: 'ASA' } });
+      const asaUsed = await prisma.accessCode.count({ where: { productType: 'ASA', isUsed: true } });
       const allTotal = await prisma.accessCode.count({ where: { productType: 'ALL' } });
       const allUsed = await prisma.accessCode.count({ where: { productType: 'ALL', isUsed: true } });
 
       byProduct = {
         LHI: { total: lhiTotal, used: lhiUsed, available: lhiTotal - lhiUsed },
         LCI: { total: lciTotal, used: lciUsed, available: lciTotal - lciUsed },
+        ASA: { total: asaTotal, used: asaUsed, available: asaTotal - asaUsed },
         ALL: { total: allTotal, used: allUsed, available: allTotal - allUsed },
       };
     }

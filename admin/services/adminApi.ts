@@ -2,7 +2,7 @@ const API_BASE = typeof window !== 'undefined' && window.location.hostname === '
   ? 'http://localhost:5001/api'
   : '/api';
 
-export type ProductType = 'LHI' | 'LCI' | 'ALL';
+export type ProductType = 'LHI' | 'LCI' | 'ASA' | 'ALL';
 
 class AdminApi {
   private token: string | null = null;
@@ -76,6 +76,14 @@ class AdminApi {
       method: 'POST',
       body: JSON.stringify({ count, productType }),
     });
+  }
+
+  async exportAssessments(productType?: ProductType, startDate?: string, endDate?: string) {
+    let query = '?';
+    if (productType) query += `productType=${productType}&`;
+    if (startDate) query += `startDate=${startDate}&`;
+    if (endDate) query += `endDate=${endDate}&`;
+    return this.request(`/assessments/export${query}`);
   }
 }
 

@@ -5,12 +5,12 @@ import { z } from 'zod';
 const generateCodesSchema = z.object({
   count: z.number().min(1).max(10000),
   batchId: z.string().optional(),
-  productType: z.enum(['LHI', 'LCI', 'ALL']).optional().default('LHI'),
+  productType: z.enum(['LHI', 'LCI', 'ASA', 'ALL']).optional().default('LHI'),
 });
 
 const validateCodeSchema = z.object({
   code: z.string(),
-  productType: z.enum(['LHI', 'LCI', 'ALL']).optional().default('LHI'),
+  productType: z.enum(['LHI', 'LCI', 'ASA', 'ALL']).optional().default('LHI'),
 });
 
 export class AccessCodeController {

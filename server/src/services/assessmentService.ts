@@ -95,6 +95,22 @@ export class AssessmentService {
     };
   }
 
+  static async getAssessmentByAccessCodeId(accessCodeId: string) {
+    const assessment = await prisma.assessment.findFirst({
+      where: { accessCodeId },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (!assessment) return null;
+
+    return {
+      ...assessment,
+      dimensions: JSON.parse(assessment.dimensions),
+      answers: JSON.parse(assessment.answers),
+      aiAnalysis: assessment.aiAnalysis ? (typeof assessment.aiAnalysis === 'string' ? assessment.aiAnalysis : JSON.stringify(assessment.aiAnalysis)) : null,
+    };
+  }
+
   static async getUserAssessments(userId: string) {
     const assessments = await prisma.assessment.findMany({
       where: { userId },
@@ -118,17 +134,47 @@ export class AssessmentService {
 
     const total = await prisma.assessment.count({ where: whereClause });
 
-    const categoryStats = await prisma.assessment.groupBy({
-      by: ['category'],
-      where: whereClause,
-      _count: true,
-    });
+    // 获取所有评估数据用于计算
+    const allAssessments = await prisma.assessment.findMany({ where: whereClause });
 
-    const attachmentStats = await prisma.assessment.groupBy({
-      by: ['attachmentStyle'],
-      where: whereClause,
-      _count: true,
+    // LHI Category distribution - 只统计LHI的类别
+    const lhiAssessments = allAssessments.filter(a => a.productType === 'LHI');
+    const lhiCategoryCount: Record<string, number> = {};
+    lhiAssessments.forEach(a => {
+      if (a.category) {
+        lhiCategoryCount[a.category] = (lhiCategoryCount[a.category] || 0) + 1;
+      }
     });
+    const lhiCategoryDistribution = Object.entries(lhiCategoryCount).map(([category, count]) => ({
+      category,
+      count
+    }));
+
+    // LCI Category distribution - 只统计LCI的类别
+    const lciAssessments = allAssessments.filter(a => a.productType === 'LCI');
+    const lciCategoryCount: Record<string, number> = {};
+    lciAssessments.forEach(a => {
+      if (a.category) {
+        lciCategoryCount[a.category] = (lciCategoryCount[a.category] || 0) + 1;
+      }
+    });
+    const lciCategoryDistribution = Object.entries(lciCategoryCount).map(([category, count]) => ({
+      category,
+      count
+    }));
+
+    // Attachment style distribution - 只统计ASA的依恋风格
+    const asaAssessments = allAssessments.filter(a => a.productType === 'ASA');
+    const attachmentCount: Record<string, number> = {};
+    asaAssessments.forEach(a => {
+      if (a.attachmentStyle) {
+        attachmentCount[a.attachmentStyle] = (attachmentCount[a.attachmentStyle] || 0) + 1;
+      }
+    });
+    const attachmentDistribution = Object.entries(attachmentCount).map(([style, count]) => ({
+      style,
+      count
+    }));
 
     const avgScore = await prisma.assessment.aggregate({
       where: whereClause,
@@ -147,38 +193,60 @@ export class AssessmentService {
         category: true,
         attachmentStyle: true,
         productType: true,
+        aiAnalysis: true,
         createdAt: true,
       },
     });
 
-    // Use different query based on whether productType filter is applied
-    let dailyStats: Array<{ date: string; count: number }>;
-    if (productType) {
-      dailyStats = await prisma.$queryRaw<Array<{ date: string; count: number }>>`
-        SELECT DATE("createdAt") as date, COUNT(*) as count
-        FROM "assessments"
-        WHERE "createdAt" >= datetime('now', '-30 days')
-        AND "productType" = ${productType}
-        GROUP BY DATE("createdAt")
-        ORDER BY date ASC
-      `;
-    } else {
-      dailyStats = await prisma.$queryRaw<Array<{ date: string; count: number }>>`
-        SELECT DATE("createdAt") as date, COUNT(*) as count
-        FROM "assessments"
-        WHERE "createdAt" >= datetime('now', '-30 days')
-        GROUP BY DATE("createdAt")
-        ORDER BY date ASC
-      `;
+    // Calculate daily stats for the last 30 days (compatible with SQLite)
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    const recentForTrend = await prisma.assessment.findMany({
+      where: {
+        ...whereClause,
+        createdAt: {
+          gte: thirtyDaysAgo
+        }
+      },
+      select: {
+        createdAt: true,
+        productType: true
+      }
+    });
+
+    // Group by date
+    const dailyStatsMap: Record<string, { date: string; count: number; lhi: number; lci: number; asa: number }> = {};
+
+    // Initialize last 30 days with 0 counts
+    for (let i = 29; i >= 0; i--) {
+      const date = new Date();
+      date.setDate(date.getDate() - i);
+      const dateStr = date.toISOString().split('T')[0];
+      dailyStatsMap[dateStr] = { date: dateStr, count: 0, lhi: 0, lci: 0, asa: 0 };
     }
+
+    // Count assessments per day
+    recentForTrend.forEach(a => {
+      const dateStr = a.createdAt.toISOString().split('T')[0];
+      if (dailyStatsMap[dateStr]) {
+        dailyStatsMap[dateStr].count++;
+        if (a.productType === 'LHI') dailyStatsMap[dateStr].lhi++;
+        else if (a.productType === 'LCI') dailyStatsMap[dateStr].lci++;
+        else if (a.productType === 'ASA') dailyStatsMap[dateStr].asa++;
+      }
+    });
+
+    const dailyStats = Object.values(dailyStatsMap).sort((a, b) => a.date.localeCompare(b.date));
 
     return {
       total,
       avgScore: Math.round(avgScore._avg.totalScore || 0),
       minScore: avgScore._min.totalScore || 0,
       maxScore: avgScore._max.totalScore || 0,
-      categoryDistribution: categoryStats.map(c => ({ category: c.category, count: c._count })),
-      attachmentDistribution: attachmentStats.map(a => ({ style: a.attachmentStyle, count: a._count })),
+      lhiCategoryDistribution,
+      lciCategoryDistribution,
+      attachmentDistribution,
       recentAssessments,
       dailyStats,
     };

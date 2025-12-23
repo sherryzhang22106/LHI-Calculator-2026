@@ -11,8 +11,12 @@ type Tab = 'overview' | 'assessments' | 'codes';
 const PRODUCT_LABELS: Record<ProductType, string> = {
   LHI: '爱情健康指数 (LHI)',
   LCI: '爱情浓度指数 (LCI)',
+  ASA: '依恋风格测评 (ASA)',
   ALL: '通用兑换码',
 };
+
+// 饼图颜色配置
+const PIE_COLORS = ['#8b5cf6', '#ec4899', '#3b82f6', '#10b981', '#f59e0b', '#ef4444'];
 
 const Dashboard: React.FC<DashboardProps> = ({ admin, onLogout }) => {
   const [activeTab, setActiveTab] = useState<Tab>('overview');
@@ -25,6 +29,14 @@ const Dashboard: React.FC<DashboardProps> = ({ admin, onLogout }) => {
   const [generateCount, setGenerateCount] = useState(10);
   const [generateProductType, setGenerateProductType] = useState<ProductType>('LHI');
   const [newlyGeneratedCodes, setNewlyGeneratedCodes] = useState<any[]>([]);
+  const [isExporting, setIsExporting] = useState(false);
+
+  // Sync generateProductType with selectedProduct filter
+  useEffect(() => {
+    if (selectedProduct && selectedProduct !== 'ALL') {
+      setGenerateProductType(selectedProduct);
+    }
+  }, [selectedProduct]);
 
   useEffect(() => {
     loadData();
@@ -104,6 +116,51 @@ const Dashboard: React.FC<DashboardProps> = ({ admin, onLogout }) => {
     document.body.removeChild(link);
   };
 
+  // 导出评估数据
+  const handleExportAssessments = async () => {
+    setIsExporting(true);
+    try {
+      const result = await adminApi.exportAssessments(selectedProduct);
+      if (result.success && result.data) {
+        const headers = ['评估ID', '产品类型', '分数', '类别', '依恋风格', '兑换码', '创建时间'];
+        const rows = result.data.map((item: any) => [
+          item.id,
+          item.productType,
+          item.totalScore,
+          item.category,
+          item.attachmentStyle || '-',
+          item.accessCode || '-',
+          new Date(item.createdAt).toLocaleString('zh-CN')
+        ]);
+
+        const csvContent = [
+          headers.join(','),
+          ...rows.map((row: string[]) => row.map(cell => `"${cell}"`).join(','))
+        ].join('\n');
+
+        const BOM = '\uFEFF';
+        const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+
+        const productLabel = selectedProduct || '全部';
+        link.setAttribute('href', url);
+        link.setAttribute('download', `评估数据_${productLabel}_${new Date().toLocaleDateString('zh-CN').replace(/\//g, '-')}.csv`);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        alert(`成功导出 ${result.count} 条评估记录！`);
+      }
+    } catch (error) {
+      alert('导出失败，请重试');
+      console.error('Export error:', error);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-50">
       <nav className="bg-white border-b border-slate-200 px-6 py-4">
@@ -141,7 +198,7 @@ const Dashboard: React.FC<DashboardProps> = ({ admin, onLogout }) => {
             >
               全部
             </button>
-            {(['LHI', 'LCI'] as ProductType[]).map((pt) => (
+            {(['LHI', 'LCI', 'ASA'] as ProductType[]).map((pt) => (
               <button
                 key={pt}
                 onClick={() => setSelectedProduct(pt)}
@@ -189,12 +246,62 @@ const Dashboard: React.FC<DashboardProps> = ({ admin, onLogout }) => {
           <>
             {activeTab === 'overview' && stats && codeStats && (
               <div className="space-y-6">
+                {/* 导出按钮 */}
+                <div className="flex justify-end">
+                  <button
+                    onClick={handleExportAssessments}
+                    disabled={isExporting}
+                    className="px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-lg font-medium hover:shadow-lg transition-all disabled:opacity-50"
+                  >
+                    {isExporting ? '导出中...' : '📥 导出评估数据'}
+                  </button>
+                </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                   <StatCard title="评估总数" value={stats.total} icon="📊" color="blue" />
                   <StatCard title="平均分数" value={stats.avgScore} icon="⭐" color="green" />
                   <StatCard title="可用兑换码" value={codeStats.available} icon="🔑" color="purple" />
                   <StatCard title="已用兑换码" value={codeStats.used} icon="✅" color="pink" />
                 </div>
+
+                {/* 30天趋势图表 */}
+                {stats.dailyStats && stats.dailyStats.length > 0 && (
+                  <div className="bg-white rounded-xl shadow-sm p-6">
+                    <h3 className="text-lg font-bold text-slate-800 mb-4">📈 30天测评趋势</h3>
+                    <div className="h-48 flex items-end gap-1">
+                      {stats.dailyStats.slice(-14).map((day: any, index: number) => {
+                        const maxCount = Math.max(...stats.dailyStats.slice(-14).map((d: any) => d.count), 1);
+                        const heightPercent = (day.count / maxCount) * 100;
+                        const barHeight = Math.max(heightPercent, day.count > 0 ? 8 : 2);
+                        return (
+                          <div key={day.date} className="flex-1 flex flex-col items-center group h-full">
+                            <div className="flex-1 w-full flex flex-col justify-end items-center">
+                              <span className="text-xs text-slate-500 opacity-0 group-hover:opacity-100 transition-opacity mb-1">
+                                {day.count}
+                              </span>
+                              <div
+                                className="w-full bg-gradient-to-t from-purple-500 to-pink-400 rounded-t-sm transition-all hover:from-purple-600 hover:to-pink-500"
+                                style={{ height: `${barHeight}%`, minHeight: day.count > 0 ? '8px' : '2px' }}
+                                title={`${day.date}: ${day.count}次测评`}
+                              />
+                            </div>
+                            <span className="text-xs text-slate-400 mt-1 transform -rotate-45 origin-left whitespace-nowrap">
+                              {day.date.slice(5)}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div className="mt-4 flex gap-4 text-sm text-slate-600">
+                      <span>最近14天总测评: <strong className="text-purple-600">
+                        {stats.dailyStats.slice(-14).reduce((sum: number, d: any) => sum + d.count, 0)}
+                      </strong></span>
+                      <span>日均: <strong className="text-pink-600">
+                        {(stats.dailyStats.slice(-14).reduce((sum: number, d: any) => sum + d.count, 0) / 14).toFixed(1)}
+                      </strong></span>
+                    </div>
+                  </div>
+                )}
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                   <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-4 border border-blue-200">
@@ -211,35 +318,80 @@ const Dashboard: React.FC<DashboardProps> = ({ admin, onLogout }) => {
                   </div>
                 </div>
 
-                {/* Category Distribution */}
-                {stats.categoryDistribution && stats.categoryDistribution.length > 0 && (
-                  <div className="bg-white rounded-xl shadow-sm p-6">
-                    <h3 className="text-lg font-bold text-slate-800 mb-4">LHI类别分布</h3>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                      {stats.categoryDistribution.map((item: any, index: number) => (
-                        <div key={index} className="bg-slate-50 rounded-lg p-4 text-center">
-                          <div className="text-2xl font-bold text-purple-600">{item.count}</div>
-                          <div className="text-sm text-slate-600 mt-1">{item.category}</div>
+                {/* 分布图表（饼图可视化） */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {/* LHI Category Distribution */}
+                  {stats.lhiCategoryDistribution && stats.lhiCategoryDistribution.length > 0 && (
+                    <div className="bg-white rounded-xl shadow-sm p-6">
+                      <h3 className="text-lg font-bold text-slate-800 mb-4">💜 LHI类别分布</h3>
+                      <div className="flex flex-col items-center gap-4">
+                        <div className="relative w-28 h-28">
+                          <PieChart data={stats.lhiCategoryDistribution.map((item: any) => item.count)} />
                         </div>
-                      ))}
+                        <div className="w-full space-y-2">
+                          {stats.lhiCategoryDistribution.map((item: any, index: number) => (
+                            <div key={index} className="flex items-center gap-2">
+                              <div
+                                className="w-3 h-3 rounded-full flex-shrink-0"
+                                style={{ backgroundColor: PIE_COLORS[index % PIE_COLORS.length] }}
+                              />
+                              <span className="text-sm text-slate-600 truncate">{item.category}</span>
+                              <span className="ml-auto font-bold text-slate-800">{item.count}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
 
-                {/* Attachment Distribution */}
-                {stats.attachmentDistribution && stats.attachmentDistribution.length > 0 && (
-                  <div className="bg-white rounded-xl shadow-sm p-6">
-                    <h3 className="text-lg font-bold text-slate-800 mb-4">依恋风格分布</h3>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                      {stats.attachmentDistribution.map((item: any, index: number) => (
-                        <div key={index} className="bg-slate-50 rounded-lg p-4 text-center">
-                          <div className="text-2xl font-bold text-blue-600">{item.count}</div>
-                          <div className="text-sm text-slate-600 mt-1">{item.style}</div>
+                  {/* LCI Category Distribution */}
+                  {stats.lciCategoryDistribution && stats.lciCategoryDistribution.length > 0 && (
+                    <div className="bg-white rounded-xl shadow-sm p-6">
+                      <h3 className="text-lg font-bold text-slate-800 mb-4">💗 LCI类别分布</h3>
+                      <div className="flex flex-col items-center gap-4">
+                        <div className="relative w-28 h-28">
+                          <PieChart data={stats.lciCategoryDistribution.map((item: any) => item.count)} />
                         </div>
-                      ))}
+                        <div className="w-full space-y-2">
+                          {stats.lciCategoryDistribution.map((item: any, index: number) => (
+                            <div key={index} className="flex items-center gap-2">
+                              <div
+                                className="w-3 h-3 rounded-full flex-shrink-0"
+                                style={{ backgroundColor: PIE_COLORS[index % PIE_COLORS.length] }}
+                              />
+                              <span className="text-sm text-slate-600 truncate">{item.category}</span>
+                              <span className="ml-auto font-bold text-slate-800">{item.count}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
+
+                  {/* ASA Attachment Distribution */}
+                  {stats.attachmentDistribution && stats.attachmentDistribution.length > 0 && (
+                    <div className="bg-white rounded-xl shadow-sm p-6">
+                      <h3 className="text-lg font-bold text-slate-800 mb-4">🔷 ASA依恋风格分布</h3>
+                      <div className="flex flex-col items-center gap-4">
+                        <div className="relative w-28 h-28">
+                          <PieChart data={stats.attachmentDistribution.map((item: any) => item.count)} />
+                        </div>
+                        <div className="w-full space-y-2">
+                          {stats.attachmentDistribution.map((item: any, index: number) => (
+                            <div key={index} className="flex items-center gap-2">
+                              <div
+                                className="w-3 h-3 rounded-full flex-shrink-0"
+                                style={{ backgroundColor: PIE_COLORS[index % PIE_COLORS.length] }}
+                              />
+                              <span className="text-sm text-slate-600 truncate">{item.style}</span>
+                              <span className="ml-auto font-bold text-slate-800">{item.count}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
 
                 <div className="bg-white rounded-xl shadow-sm p-6">
                   <h3 className="text-lg font-bold text-slate-800 mb-4">最近评估</h3>
@@ -248,18 +400,64 @@ const Dashboard: React.FC<DashboardProps> = ({ admin, onLogout }) => {
                       <table className="w-full text-sm">
                         <thead className="bg-slate-50">
                           <tr>
+                            <th className="px-4 py-3 text-left text-slate-600 font-medium">产品</th>
                             <th className="px-4 py-3 text-left text-slate-600 font-medium">分数</th>
                             <th className="px-4 py-3 text-left text-slate-600 font-medium">类别</th>
                             <th className="px-4 py-3 text-left text-slate-600 font-medium">依恋风格</th>
+                            <th className="px-4 py-3 text-left text-slate-600 font-medium">AI报告</th>
                             <th className="px-4 py-3 text-left text-slate-600 font-medium">日期</th>
                           </tr>
                         </thead>
                         <tbody>
                           {stats.recentAssessments.map((assessment: any) => (
                             <tr key={assessment.id} className="border-t border-slate-100 hover:bg-slate-50">
+                              <td className="px-4 py-3">
+                                <span className={`px-2 py-1 rounded text-xs font-medium ${
+                                  assessment.productType === 'LHI' ? 'bg-purple-100 text-purple-700' :
+                                  assessment.productType === 'LCI' ? 'bg-pink-100 text-pink-700' :
+                                  assessment.productType === 'ASA' ? 'bg-blue-100 text-blue-700' :
+                                  'bg-slate-100 text-slate-700'
+                                }`}>
+                                  {assessment.productType || 'LHI'}
+                                </span>
+                              </td>
                               <td className="px-4 py-3 font-bold text-purple-600">{assessment.totalScore}</td>
-                              <td className="px-4 py-3 text-slate-700">{assessment.category}</td>
-                              <td className="px-4 py-3 text-slate-600 text-xs">{assessment.attachmentStyle}</td>
+                              <td className="px-4 py-3 text-slate-700">{assessment.category || '-'}</td>
+                              <td className="px-4 py-3 text-slate-600 text-xs">{assessment.attachmentStyle || '-'}</td>
+                              <td className="px-4 py-3">
+                                {assessment.aiAnalysis ? (
+                                  <button
+                                    onClick={() => {
+                                      const win = window.open('', '_blank');
+                                      if (win) {
+                                        win.document.write(`
+                                          <html>
+                                            <head>
+                                              <title>AI报告 - ${assessment.id.slice(0,8)}</title>
+                                              <style>
+                                                body { font-family: system-ui; padding: 40px; max-width: 800px; margin: 0 auto; line-height: 1.8; }
+                                                h2, h3 { color: #6b21a8; }
+                                              </style>
+                                            </head>
+                                            <body>
+                                              <h2>AI深度分析报告</h2>
+                                              <p><strong>产品:</strong> ${assessment.productType} | <strong>分数:</strong> ${assessment.totalScore}</p>
+                                              <hr/>
+                                              <div>${assessment.aiAnalysis.replace(/\n/g, '<br/>')}</div>
+                                            </body>
+                                          </html>
+                                        `);
+                                        win.document.close();
+                                      }
+                                    }}
+                                    className="px-2 py-1 bg-green-100 text-green-700 rounded text-xs hover:bg-green-200 transition-colors"
+                                  >
+                                    查看报告
+                                  </button>
+                                ) : (
+                                  <span className="text-slate-400 text-xs">无</span>
+                                )}
+                              </td>
                               <td className="px-4 py-3 text-slate-500 text-xs">
                                 {new Date(assessment.createdAt).toLocaleDateString()}
                               </td>
@@ -287,6 +485,7 @@ const Dashboard: React.FC<DashboardProps> = ({ admin, onLogout }) => {
                           <th className="px-4 py-3 text-left text-slate-600 font-medium">分数</th>
                           <th className="px-4 py-3 text-left text-slate-600 font-medium">类别</th>
                           <th className="px-4 py-3 text-left text-slate-600 font-medium">兑换码</th>
+                          <th className="px-4 py-3 text-left text-slate-600 font-medium">AI报告</th>
                           <th className="px-4 py-3 text-left text-slate-600 font-medium">评估日期</th>
                         </tr>
                       </thead>
@@ -296,7 +495,41 @@ const Dashboard: React.FC<DashboardProps> = ({ admin, onLogout }) => {
                             <td className="px-4 py-3 text-slate-500 text-xs font-mono">{assessment.id.slice(0, 8)}</td>
                             <td className="px-4 py-3 font-bold text-purple-600">{assessment.totalScore}</td>
                             <td className="px-4 py-3 text-slate-700">{assessment.category}</td>
-                            <td className="px-4 py-3 text-xs font-mono text-slate-600">{assessment.accessCode.code}</td>
+                            <td className="px-4 py-3 text-xs font-mono text-slate-600">{assessment.accessCode?.code || '-'}</td>
+                            <td className="px-4 py-3">
+                              {assessment.aiAnalysis ? (
+                                <button
+                                  onClick={() => {
+                                    const win = window.open('', '_blank');
+                                    if (win) {
+                                      win.document.write(`
+                                        <html>
+                                          <head>
+                                            <title>AI报告 - ${assessment.id.slice(0,8)}</title>
+                                            <style>
+                                              body { font-family: system-ui; padding: 40px; max-width: 800px; margin: 0 auto; line-height: 1.8; }
+                                              h2, h3 { color: #6b21a8; }
+                                            </style>
+                                          </head>
+                                          <body>
+                                            <h2>AI深度分析报告</h2>
+                                            <p><strong>评估ID:</strong> ${assessment.id.slice(0,8)} | <strong>分数:</strong> ${assessment.totalScore}</p>
+                                            <hr/>
+                                            <div>${typeof assessment.aiAnalysis === 'string' ? assessment.aiAnalysis.replace(/\\n/g, '<br/>') : JSON.stringify(assessment.aiAnalysis)}</div>
+                                          </body>
+                                        </html>
+                                      `);
+                                      win.document.close();
+                                    }
+                                  }}
+                                  className="px-2 py-1 bg-green-100 text-green-700 rounded text-xs hover:bg-green-200 transition-colors"
+                                >
+                                  查看报告
+                                </button>
+                              ) : (
+                                <span className="text-slate-400 text-xs">无</span>
+                              )}
+                            </td>
                             <td className="px-4 py-3 text-slate-500 text-xs">
                               {new Date(assessment.createdAt).toLocaleString()}
                             </td>
@@ -335,6 +568,7 @@ const Dashboard: React.FC<DashboardProps> = ({ admin, onLogout }) => {
                     >
                       <option value="LHI">LHI - 爱情健康指数</option>
                       <option value="LCI">LCI - 爱情浓度指数</option>
+                      <option value="ASA">ASA - 依恋风格测评</option>
                       <option value="ALL">通用 - 所有产品</option>
                     </select>
                     <button
@@ -443,6 +677,36 @@ const StatCard: React.FC<{ title: string; value: number; icon: string; color: st
       <div className="text-3xl font-bold text-slate-800 mb-1">{value}</div>
       <div className="text-sm text-slate-500">{title}</div>
     </div>
+  );
+};
+
+// 简单的CSS饼图组件
+const PieChart: React.FC<{ data: number[] }> = ({ data }) => {
+  const total = data.reduce((sum, val) => sum + val, 0);
+  if (total === 0) return <div className="w-full h-full rounded-full bg-slate-200" />;
+
+  let cumulativePercent = 0;
+  const segments = data.map((value, index) => {
+    const percent = (value / total) * 100;
+    const startPercent = cumulativePercent;
+    cumulativePercent += percent;
+    return { percent, startPercent, color: PIE_COLORS[index % PIE_COLORS.length] };
+  });
+
+  // 创建conic-gradient
+  const gradientStops = segments.map((seg, i) => {
+    const start = seg.startPercent;
+    const end = seg.startPercent + seg.percent;
+    return `${seg.color} ${start}% ${end}%`;
+  }).join(', ');
+
+  return (
+    <div
+      className="w-full h-full rounded-full"
+      style={{
+        background: `conic-gradient(${gradientStops})`
+      }}
+    />
   );
 };
 
