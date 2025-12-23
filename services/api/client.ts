@@ -1,6 +1,7 @@
-const API_BASE = typeof window !== 'undefined' && window.location.hostname === 'localhost' 
+// Centralized API - all products use the same backend
+const API_BASE = typeof window !== 'undefined' && window.location.hostname === 'localhost'
   ? 'http://localhost:5001/api'
-  : '/api';
+  : 'https://admin.bettermee.cc/api';
 
 class ApiClient {
   async validateAccessCode(code: string): Promise<{ valid: boolean; accessCodeId?: string; message?: string }> {
