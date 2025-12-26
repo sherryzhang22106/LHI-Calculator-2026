@@ -143,11 +143,39 @@ export class AssessmentService {
 
     if (!assessment) return null;
 
+    // Parse dimensions
+    let parsedDimensions;
+    try {
+      parsedDimensions = JSON.parse(assessment.dimensions);
+    } catch (e) {
+      parsedDimensions = assessment.dimensions;
+    }
+
+    // Parse answers
+    let parsedAnswers;
+    try {
+      parsedAnswers = JSON.parse(assessment.answers);
+    } catch (e) {
+      parsedAnswers = assessment.answers;
+    }
+
+    // Handle aiAnalysis - for ASA, it's a string; for LHI, it might be JSON
+    let aiAnalysisResult = assessment.aiAnalysis;
+    if (assessment.productType === 'LHI' && assessment.aiAnalysis) {
+      try {
+        aiAnalysisResult = JSON.parse(assessment.aiAnalysis);
+      } catch (e) {
+        // If parse fails, keep as string
+      }
+    }
+
     return {
       ...assessment,
-      dimensions: JSON.parse(assessment.dimensions),
-      answers: JSON.parse(assessment.answers),
-      aiAnalysis: assessment.aiAnalysis ? JSON.parse(assessment.aiAnalysis) : null,
+      dimensions: parsedDimensions,
+      answers: parsedAnswers,
+      aiAnalysis: aiAnalysisResult,
+      aiStatus: assessment.aiStatus || 'pending',
+      aiGeneratedAt: assessment.aiGeneratedAt || null,
     };
   }
 
