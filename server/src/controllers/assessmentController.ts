@@ -26,6 +26,55 @@ const submitAssessmentSchema = z.object({
 });
 
 export class AssessmentController {
+  // 新增：ASA异步提交
+  static async submitASA(req: AuthRequest, res: Response) {
+    try {
+      const {
+        accessCode,
+        scores,
+        answers,
+        primaryType,
+        dimensions,
+        answerSummary
+      } = req.body;
+
+      const ipAddress = req.ip || req.socket.remoteAddress;
+      const userAgent = req.get('user-agent');
+
+      const result = await AssessmentService.submitASAAssessment({
+        accessCode,
+        scores,
+        answers,
+        primaryType,
+        dimensions,
+        answerSummary,
+        ipAddress,
+        userAgent
+      });
+
+      res.json(result);
+    } catch (error: any) {
+      console.error('ASA submission error:', error);
+      res.status(400).json({ 
+        error: error.message || 'Failed to submit assessment' 
+      });
+    }
+  }
+
+  // 新增：查询AI状态
+  static async getAIStatus(req: AuthRequest, res: Response) {
+    try {
+      const { id } = req.params;
+      const status = await AssessmentService.getAIReportStatus(id);
+      res.json(status);
+    } catch (error: any) {
+      console.error('Get AI status error:', error);
+      res.status(404).json({ 
+        error: error.message || 'Assessment not found' 
+      });
+    }
+  }
+
   static async create(req: AuthRequest, res: Response) {
     try {
       const data = createAssessmentSchema.parse(req.body);

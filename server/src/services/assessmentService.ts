@@ -2,6 +2,62 @@ import prisma from '../config/database';
 import { AccessCodeService, ProductType } from './accessCodeService';
 import { DeepSeekService } from './deepseekService';
 
+// 异步生成AI报告的函数（不阻塞主流程）
+async function generateAIReportAsync(
+  assessmentId: string,
+  scores: any,
+  answers: any,
+  primaryType: string,
+  answerSummary: string,
+  ipAddress?: string
+): Promise<void> {
+  try {
+    console.log(`[AI Report] Starting async generation for assessment ${assessmentId}`);
+    
+    // 更新状态为 generating
+    await prisma.assessment.update({
+      where: { id: assessmentId },
+      data: { aiStatus: 'generating' }
+    });
+
+    // 调用 DeepSeek API 生成报告
+    const result = await DeepSeekService.generateASAReport({
+      scores,
+      primaryType,
+      answerSummary,
+      ipAddress
+      // 不传 accessCodeId，避免重复保存到数据库
+    });
+
+    if (result.success && result.report) {
+      // 保存报告并更新状态为 completed
+      await prisma.assessment.update({
+        where: { id: assessmentId },
+        data: {
+          aiAnalysis: result.report,
+          aiStatus: 'completed',
+          aiGeneratedAt: new Date()
+        }
+      });
+      console.log(`[AI Report] Successfully generated for assessment ${assessmentId}, length: ${result.report.length}`);
+    } else {
+      // 生成失败
+      await prisma.assessment.update({
+        where: { id: assessmentId },
+        data: { aiStatus: 'failed' }
+      });
+      console.error(`[AI Report] Failed for assessment ${assessmentId}:`, result.error);
+    }
+  } catch (error) {
+    console.error(`[AI Report] Error for assessment ${assessmentId}:`, error);
+    // 更新状态为 failed
+    await prisma.assessment.update({
+      where: { id: assessmentId },
+      data: { aiStatus: 'failed' }
+    }).catch(err => console.error('Failed to update status to failed:', err));
+  }
+}
+
 export interface AssessmentData {
   accessCode: string;
   productType?: ProductType;
@@ -92,6 +148,91 @@ export class AssessmentService {
       dimensions: JSON.parse(assessment.dimensions),
       answers: JSON.parse(assessment.answers),
       aiAnalysis: assessment.aiAnalysis ? JSON.parse(assessment.aiAnalysis) : null,
+    };
+  }
+
+  // 新增：ASA专用的提交方法（异步生成AI报告）
+  static async submitASAAssessment(data: {
+    accessCode: string;
+    scores: any;
+    answers: any;
+    primaryType: string;
+    dimensions: any[];
+    answerSummary: string;
+    ipAddress?: string;
+    userAgent?: string;
+  }) {
+    // 验证兑换码
+    const validation = await AccessCodeService.validateCode(data.accessCode, 'ASA');
+    
+    if (!validation.valid || !validation.accessCodeId) {
+      throw new Error(validation.message || 'Invalid access code');
+    }
+
+    // 计算总分
+    const totalScore = (data.scores.secure || 0) + (data.scores.anxious || 0) +
+                      (data.scores.avoidant || 0) + (data.scores.fearful || 0);
+
+    // 创建测评记录（不包含AI报告）
+    const assessment = await prisma.assessment.create({
+      data: {
+        accessCodeId: validation.accessCodeId,
+        productType: 'ASA',
+        totalScore,
+        category: data.primaryType,
+        attachmentStyle: data.primaryType,
+        dimensions: JSON.stringify(data.dimensions),
+        answers: JSON.stringify(data.answers),
+        scores: JSON.stringify({ scores: data.scores }),
+        aiAnalysis: null,  // 初始为空
+        aiStatus: 'pending',  // 初始状态
+        ipAddress: data.ipAddress,
+        userAgent: data.userAgent,
+      },
+    });
+
+    // 标记兑换码为已使用
+    await AccessCodeService.markCodeAsUsed(validation.accessCodeId, data.ipAddress);
+
+    // 异步生成AI报告（不阻塞响应）
+    generateAIReportAsync(
+      assessment.id,
+      data.scores,
+      data.answers,
+      data.primaryType,
+      data.answerSummary,
+      data.ipAddress
+    ).catch(err => console.error('[submitASAAssessment] Async AI generation error:', err));
+
+    console.log(`[submitASAAssessment] Assessment created: ${assessment.id}, AI generation started in background`);
+
+    // 立即返回（不等待AI报告）
+    return {
+      id: assessment.id,
+      message: 'Assessment submitted successfully. AI report is being generated.',
+      aiStatus: 'pending'
+    };
+  }
+
+  // 新增：查询AI报告状态
+  static async getAIReportStatus(assessmentId: string) {
+    const assessment = await prisma.assessment.findUnique({
+      where: { id: assessmentId },
+      select: {
+        aiStatus: true,
+        aiAnalysis: true,
+        aiGeneratedAt: true,
+      },
+    });
+
+    if (!assessment) {
+      throw new Error('Assessment not found');
+    }
+
+    return {
+      status: assessment.aiStatus,
+      report: assessment.aiStatus === 'completed' ? assessment.aiAnalysis : null,
+      generatedAt: assessment.aiGeneratedAt,
     };
   }
 

@@ -6,8 +6,10 @@ const router = Router();
 
 router.post('/', AssessmentController.create);
 router.post('/submit', AssessmentController.submit);  // LCI和其他产品使用的提交路由
+router.post('/submit-asa', AssessmentController.submitASA);  // 新增：ASA异步提交
 router.post('/update-ai', AssessmentController.updateAI);  // 更新AI分析
 router.post('/generate-asa-report', AssessmentController.generateASAReport);
+router.get('/:id/ai-status', AssessmentController.getAIStatus);  // 新增：查询AI状态
 router.get('/stats', authenticate, requireAdmin, AssessmentController.getStatistics);
 router.get('/list', authenticate, requireAdmin, AssessmentController.list);
 router.get('/export', authenticate, requireAdmin, AssessmentController.export);  // 导出评估数据
