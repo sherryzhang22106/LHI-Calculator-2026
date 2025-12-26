@@ -48,6 +48,8 @@ model Assessment {
   dimensions      String   // JSON string
   answers         String   // JSON string
   aiAnalysis      String?
+  aiStatus        String   @default("pending")  // pending, generating, completed, failed
+  aiGeneratedAt   DateTime?  // AI report completion time
   ipAddress       String?
   userAgent       String?
   createdAt       DateTime @default(now())
@@ -59,6 +61,7 @@ model Assessment {
   @@index([createdAt])
   @@index([accessCodeId])
   @@index([productType])
+  @@index([aiStatus])
   @@map("assessments")
 }
 
