@@ -281,7 +281,7 @@ ${data.answerSummary}
 
       // 调用 DeepSeek API
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 60000); // 60 秒超时
+      const timeout = setTimeout(() => controller.abort(), 90000); // 90 秒超时，给更多时间生成详细报告
 
       try {
         const apiResponse = await fetch(this.API_URL, {
@@ -303,7 +303,7 @@ ${data.answerSummary}
               }
             ],
             temperature: 0.75,
-            max_tokens: 4000,
+            max_tokens: 6000,
             top_p: 0.95
           }) as any,
           signal: controller.signal
@@ -346,8 +346,7 @@ ${data.answerSummary}
                 category: data.primaryType, // 使用依恋类型作为category
                 attachmentStyle: data.primaryType,
                 dimensions: JSON.stringify({
-                  scores: data.scores,
-                  dimensions: data.scores.dimensions || {}
+                  scores: data.scores
                 }),
                 answers: JSON.stringify({}), // 根据需要存储
                 aiAnalysis: reportText,
