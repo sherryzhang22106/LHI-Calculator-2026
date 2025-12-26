@@ -332,7 +332,7 @@ ${data.answerSummary}
    - 不提及"测评工具局限性"或"需专业咨询"等免责内容
    - 不要生硬地分点列举，要有流畅的叙述
 
-请直接输出完整的4000-5000字报告正文，务必详细深入，每个章节都要充分展开，不要包含任何前置说明或附加信息。`;
+请直接输出完整的6000-8000字报告正文，务必详细深入，每个章节都要充分展开，不要包含任何前置说明或附加信息。`;
 
       // 调用 DeepSeek API
       const controller = new AbortController();
@@ -358,7 +358,7 @@ ${data.answerSummary}
               }
             ],
             temperature: 0.75,
-            max_tokens: 8192,  // DeepSeek API 上限，约可生成3000-3500中文字
+            max_tokens: 6000,  // 调整为6000，生成6000-8000字报告，加快响应速度
             top_p: 0.95
           }) as any,
           signal: controller.signal
