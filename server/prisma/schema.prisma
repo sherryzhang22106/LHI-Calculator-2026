@@ -40,13 +40,16 @@ model Assessment {
   id              String   @id @default(uuid())
   userId          String?
   accessCodeId    String
-  productType     String   @default("LHI")  // LHI or LCI
-  totalScore      Int
-  category        String
-  attachmentStyle String?  // Optional for LCI (uses different fields)
-  dimensions      String
-  answers         String
+  productType     String   @default("LHI")  // LHI, LCI, or ASA
+  totalScore      Int?     // Optional for ASA (uses scores object)
+  category        String?  // Optional for ASA
+  attachmentStyle String?  // For ASA: Secure, Anxious, Avoidant, Fearful
+  scores          String?  // JSON string for ASA scores
+  dimensions      String   // JSON string
+  answers         String   // JSON string
   aiAnalysis      String?
+  aiStatus        String   @default("pending")  // pending, generating, completed, failed
+  aiGeneratedAt   DateTime?  // AI report completion time
   ipAddress       String?
   userAgent       String?
   createdAt       DateTime @default(now())
@@ -58,6 +61,7 @@ model Assessment {
   @@index([createdAt])
   @@index([accessCodeId])
   @@index([productType])
+  @@index([aiStatus])
   @@map("assessments")
 }
 
