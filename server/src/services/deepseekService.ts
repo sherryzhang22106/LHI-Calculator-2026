@@ -358,7 +358,7 @@ ${data.answerSummary}
               }
             ],
             temperature: 0.75,
-            max_tokens: 6000,  // 调整为6000，生成6000-8000字报告，加快响应速度
+            max_tokens: 7500,  // 调整为7500，确保6000-8000字报告完整生成
             top_p: 0.95
           }) as any,
           signal: controller.signal
